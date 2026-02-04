@@ -1,0 +1,67 @@
+# =====================================================
+# SENTINEL - Dependências MVP1 Backend
+# Python 3.10+ (testado até 3.13)
+# =====================================================
+
+# Core Framework
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+pydantic>=2.10.0
+pydantic-settings>=2.6.0
+
+# Database
+sqlalchemy>=2.0.36
+aiosqlite>=0.20.0
+
+# HTTP Client
+httpx>=0.28.1
+tenacity>=9.0.0  # Retry logic
+
+# Calendar - iCal parsing
+icalendar>=6.1.0
+python-dateutil>=2.9.0
+pytz>=2024.2
+
+# Utilities
+python-dotenv>=1.0.1
+loguru>=0.7.2
+psutil>=5.9.0  # System monitoring
+
+# Security & Authentication
+passlib[bcrypt]>=1.7.4
+python-jose[cryptography]>=3.3.0
+python-multipart>=0.0.9
+slowapi>=0.1.9
+itsdangerous>=2.2.0  # CSRF token generation
+redis>=5.0.0  # Token blacklist (opcional, usa in-memory se não configurado)
+
+# Security Linters & Scanners (Development/CI)
+bandit>=1.9.3  # Security linter
+safety>=3.7.0  # Dependency vulnerability scanner
+
+# =====================================================
+# MVP2 Dependencies (Document Generation)
+# =====================================================
+python-docx>=1.1.2
+docxtpl>=0.18.0  # Template engine for DOCX
+Pillow>=10.0.0  # Image handling
+
+# =====================================================
+# MVP2 Dependencies (Telegram Bot)
+# =====================================================
+python-telegram-bot>=21.0
+
+# =====================================================
+# MVP2 Dependencies (Email - Universal IMAP/SMTP)
+# =====================================================
+aiosmtplib>=3.0.0  # Async SMTP
+aioimaplib>=1.0.0  # Async IMAP
+email-validator>=2.0.0
+jinja2>=3.1.0  # Email templates
+
+# =====================================================
+# Testing (Optional - uncomment to run tests)
+# =====================================================
+# pytest>=8.3.0
+# pytest-asyncio>=0.24.0
+# faker>=33.0.0

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lembrete de Check-in</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+        }
+        .content {
+            padding: 30px 20px;
+        }
+        .highlight-box {
+            background: #fff3e0;
+            border: 2px solid #ff9800;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .highlight-box .big-text {
+            font-size: 24px;
+            font-weight: bold;
+            color: #f57c00;
+            margin: 10px 0;
+        }
+        .info-box {
+            background: #f8f9fa;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .checklist {
+            background: #e8f5e9;
+            border-left: 4px solid #4caf50;
+            padding: 15px 20px;
+            margin: 20px 0;
+        }
+        .checklist h4 {
+            margin-top: 0;
+            color: #2e7d32;
+        }
+        .checklist ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .checklist li {
+            margin: 8px 0;
+        }
+        .footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            font-size: 14px;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⏰ Lembrete de Check-in</h1>
+        </div>
+
+        <div class="content">
+            <p>Olá <strong>{{ guest_name }}</strong>,</p>
+
+            <p>
+                Seu check-in está <strong>chegando</strong>!
+                Estamos preparando tudo para sua chegada.
+            </p>
+
+            <div class="highlight-box">
+                <p style="margin: 0; font-size: 16px;">Seu check-in é em:</p>
+                <div class="big-text">{{ check_in }}</div>
+                <p style="margin: 10px 0 0; color: #666;">às 14:00</p>
+            </div>
+
+            <div class="info-box">
+                <h3>📍 Endereço do Imóvel</h3>
+                <p style="font-size: 16px; margin: 10px 0;">
+                    <strong>{{ property_address }}</strong>
+                </p>
+            </div>
+
+            <div class="checklist">
+                <h4>✓ Checklist para o Check-in</h4>
+                <ul>
+                    <li>Documento de identificação com foto</li>
+                    <li>Comprovante da reserva</li>
+                    <li>Chegar entre 14h e 22h (se possível)</li>
+                    <li>Entrar em contato em caso de atraso</li>
+                </ul>
+            </div>
+
+            <div class="info-box">
+                <h4>🔑 Instruções de Acesso</h4>
+                <p>
+                    {% if access_instructions %}
+                        {{ access_instructions }}
+                    {% else %}
+                        As instruções de acesso serão enviadas no dia do check-in.
+                    {% endif %}
+                </p>
+            </div>
+
+            <p style="margin-top: 30px;">
+                <strong>Contato de Emergência:</strong><br>
+                Telefone: {{ contact_phone | default('(62) 99999-9999') }}<br>
+                Email: {{ contact_email | default('contato@lumina.com') }}
+            </p>
+
+            <p style="margin-top: 20px;">
+                Estamos ansiosos para recebê-lo(a)!<br>
+                <strong>Equipe LUMINA</strong>
+            </p>
+        </div>
+
+        <div class="footer">
+            <p><strong>LUMINA - Sistema de Gestão de Apartamentos</strong></p>
+            <p>Este é um email automático. Por favor, não responda.</p>
+        </div>
+    </div>
+</body>
+</html>
