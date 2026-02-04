@@ -1,0 +1,111 @@
+# =====================================================
+# SENTINEL - GitIgnore Configuration
+# =====================================================
+
+# === PYTHON ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.venv/
+
+# Distribution / packaging
+*.egg-info/
+dist/
+build/
+*.egg
+
+# === CONFIGURAÇÕES SENSÍVEIS ===
+.env
+.env.local
+.env.*.local
+credentials.json
+token.json
+*.key
+*.pem
+
+# === BANCO DE DADOS ===
+data/sentinel.db
+data/sentinel.db-*
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# === ARQUIVOS GERADOS ===
+data/downloads/
+data/generated_docs/
+data/logs/
+data/backups/
+*.log
+
+# === FRONTEND ===
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/build/
+frontend/.cache/
+
+# Dependencies
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# === IDEs ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# === OS ===
+.DS_Store
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# === TESTES ===
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+
+# === TEMPORÁRIOS ===
+*.tmp
+*.bak
+*.orig
+*~
+
+# === LOGS E DEBUG ===
+*.log
+logs/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# === OUTROS ===
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+cython_debug/
+
+# Jupyter Notebooks (se usar futuramente)
+.ipynb_checkpoints/
+*.ipynb
+
+# === ESPECÍFICO DO PROJETO ===
+# Migrations (quando adicionar Alembic)
+# migrations/versions/*.py
+# !migrations/versions/__init__.py

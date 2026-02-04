@@ -1,0 +1,263 @@
+╔════════════════════════════════════════════════════════════════╗
+║                                                                ║
+║   🚀 COMECE A USAR AGORA - GUIA RÁPIDO                        ║
+║                                                                ║
+╚════════════════════════════════════════════════════════════════╝
+
+📋 CHECKLIST - SIGA NESTA ORDEM
+
+┌────────────────────────────────────────────────────────────────┐
+│ ✅ PASSO 1: Instalar Recharts (biblioteca de gráficos)        │
+└────────────────────────────────────────────────────────────────┘
+
+1. Abra o explorador de arquivos
+2. Navegue até:
+   C:\Users\zegil\Documents\GitHub\AP_Controller\frontend
+
+3. Execute o arquivo:
+   instalar_recharts.bat
+
+4. Aguarde a instalação completar
+5. Feche a janela
+
+
+┌────────────────────────────────────────────────────────────────┐
+│ ✅ PASSO 2: Configurar Bot do Telegram (OPCIONAL)             │
+└────────────────────────────────────────────────────────────────┘
+
+📝 Veja o guia completo em: CONFIGURAR_BOT_TELEGRAM.txt
+
+RESUMO RÁPIDO:
+1. Abra Telegram → procure @BotFather
+2. Digite: /newbot
+3. Copie o TOKEN fornecido
+4. Descubra seu USER ID (@userinfobot)
+5. Edite o arquivo .env e adicione:
+   TELEGRAM_BOT_TOKEN=seu_token_aqui
+   TELEGRAM_ADMIN_USER_IDS=seu_id_aqui
+
+⚠️  Se não configurar agora, pode fazer depois!
+    O sistema funciona perfeitamente sem o bot.
+
+
+┌────────────────────────────────────────────────────────────────┐
+│ ✅ PASSO 3: Configurar URLs dos Calendários                   │
+└────────────────────────────────────────────────────────────────┘
+
+1. Abra o arquivo .env
+2. Adicione suas URLs do iCal:
+
+   AIRBNB_ICAL_URL=https://www.airbnb.com/calendar/ical/XXXXXX.ics
+   BOOKING_ICAL_URL=https://admin.booking.com/.../XXXXXX.ics
+
+   📝 Como obter as URLs:
+
+   AIRBNB:
+   - Faça login no Airbnb
+   - Vá em "Calendário"
+   - Clique em "Disponibilidade"
+   - Copie o link "Exportar calendário"
+
+   BOOKING.COM:
+   - Faça login no Booking.com (painel de host)
+   - Vá em "Calendário"
+   - Procure "Sincronização de calendário"
+   - Copie o link iCal
+
+
+┌────────────────────────────────────────────────────────────────┐
+│ ✅ PASSO 4: Iniciar o Sistema                                 │
+└────────────────────────────────────────────────────────────────┘
+
+1. Execute o arquivo:
+   INICIAR_SISTEMA.bat
+
+2. Aguarde as mensagens:
+   ✅ Backend iniciado em http://localhost:8000
+   ✅ Frontend iniciado em http://localhost:5173
+   ✅ Bot do Telegram iniciado (se configurado)
+
+3. O navegador abrirá automaticamente!
+
+
+┌────────────────────────────────────────────────────────────────┐
+│ ✅ PASSO 5: Explorar a Interface                              │
+└────────────────────────────────────────────────────────────────┘
+
+🏠 DASHBOARD (Página Inicial)
+- Veja as estatísticas gerais
+- Check-ins e check-outs de hoje
+- Próximas reservas
+- Alertas de conflitos
+
+📅 CALENDÁRIO
+- Visualize todas as reservas no mês
+- Navegue entre meses
+- Clique em eventos para ver detalhes
+- Use o botão "Sincronizar" para atualizar
+
+⚠️  CONFLITOS
+- Veja todos os conflitos detectados
+- Compare reservas lado a lado
+- Resolva conflitos com notas
+- Detecte novos conflitos
+
+📊 ESTATÍSTICAS
+- Veja gráficos interativos
+- Taxa de ocupação mensal
+- Receita mensal
+- Distribuição por plataforma
+- Selecione o período desejado
+
+⚙️  CONFIGURAÇÕES
+- Edite dados do apartamento
+- Configure URLs dos calendários
+- Ajuste intervalo de sincronização
+- Ative/desative recursos
+
+
+┌────────────────────────────────────────────────────────────────┐
+│ ✅ PASSO 6: Testar o Bot do Telegram (se configurou)          │
+└────────────────────────────────────────────────────────────────┘
+
+1. Abra o Telegram
+2. Procure por: @seu_bot_username
+3. Envie: /start
+4. Teste os comandos:
+   /menu       - Menu principal
+   /status     - Status do sistema
+   /hoje       - Atividades de hoje
+   /reservas   - Lista de reservas
+   /conflitos  - Conflitos detectados
+   /sync       - Sincronizar agora
+
+
+╔════════════════════════════════════════════════════════════════╗
+║                    🎯 TAREFAS IMPORTANTES                      ║
+╚════════════════════════════════════════════════════════════════╝
+
+1️⃣  CONFIGURE AS URLs DO ICAL
+    → Sem isso, o sistema não terá dados!
+    → Vá em Configurações → Configuração Fácil
+
+2️⃣  FAÇA A PRIMEIRA SINCRONIZAÇÃO
+    → Clique em "Sincronizar" no Calendário
+    → Ou envie /sync no bot Telegram
+    → Aguarde as reservas aparecerem
+
+3️⃣  VERIFIQUE CONFLITOS
+    → Após sincronizar, vá em Conflitos
+    → Resolva qualquer conflito detectado
+
+4️⃣  EXPLORE O DASHBOARD
+    → Veja todas as estatísticas
+    → Familiarize-se com a interface
+
+5️⃣  CONFIGURE NOTIFICAÇÕES (OPCIONAL)
+    → Configure o bot do Telegram
+    → Receba alertas automáticos
+
+
+╔════════════════════════════════════════════════════════════════╗
+║                    📚 DOCUMENTAÇÃO DISPONÍVEL                  ║
+╚════════════════════════════════════════════════════════════════╝
+
+📄 LEIA-ME_PRIMEIRO.txt
+   → Guia visual de início rápido
+
+📄 COMO_INICIAR.md
+   → Guia detalhado de instalação
+
+📄 CONFIGURAR_BOT_TELEGRAM.txt
+   → Como configurar o bot passo a passo
+
+📄 docs/CALENDARIO_E_CONFLITOS.md
+   → Sistema de calendário e conflitos
+
+📄 docs/DASHBOARD_E_ESTATISTICAS.md
+   → Dashboard e estatísticas detalhadas
+
+📄 docs/TELEGRAM_BOT.md
+   → Bot do Telegram completo
+
+📄 docs/RESUMO_FINAL_MVP1.md
+   → Resumo de tudo que foi implementado
+
+
+╔════════════════════════════════════════════════════════════════╗
+║                    ❓ PERGUNTAS FREQUENTES                     ║
+╚════════════════════════════════════════════════════════════════╝
+
+P: O sistema funciona sem o bot do Telegram?
+R: SIM! O bot é opcional. Você pode usar só a interface web.
+
+P: Preciso deixar o computador ligado 24/7?
+R: Não necessariamente. Mas para sincronização automática
+   e notificações em tempo real, sim.
+
+P: Quantas plataformas posso sincronizar?
+R: Atualmente: Airbnb e Booking.com via iCal.
+   Reservas manuais também podem ser adicionadas.
+
+P: O que acontece se houver conflito?
+R: O sistema detecta automaticamente e alerta você.
+   Você pode resolver na interface web ou via bot.
+
+P: Posso acessar de outro computador?
+R: Por padrão, só localhost. Mas você pode configurar
+   para aceitar conexões externas.
+
+P: Os dados são salvos na nuvem?
+R: NÃO. Tudo é local (SQLite). Seus dados ficam
+   apenas no seu computador.
+
+
+╔════════════════════════════════════════════════════════════════╗
+║                    ⚠️  PROBLEMAS COMUNS                        ║
+╚════════════════════════════════════════════════════════════════╝
+
+PROBLEMA: Gráficos não aparecem
+  ❌ Biblioteca recharts não instalada
+  ✅ Execute: frontend/instalar_recharts.bat
+
+PROBLEMA: Bot não responde
+  ❌ TOKEN ou USER ID incorretos
+  ✅ Verifique o arquivo .env
+
+PROBLEMA: Nenhuma reserva aparece
+  ❌ URLs do iCal não configuradas
+  ✅ Configure em Configurações → Configuração Fácil
+  ✅ Clique em "Sincronizar"
+
+PROBLEMA: Porta 8000 já em uso
+  ❌ Outro processo usando a porta
+  ✅ Feche outros programas ou mude a porta
+
+PROBLEMA: Frontend não carrega
+  ❌ Dependências não instaladas
+  ✅ Execute: cd frontend && npm install
+
+
+╔════════════════════════════════════════════════════════════════╗
+║                    🎉 TUDO PRONTO!                             ║
+║                                                                ║
+║   Seu sistema SENTINEL está 100% funcional!                   ║
+║   Comece sincronizando seus calendários.                      ║
+║                                                                ║
+║   Dúvidas? Consulte a documentação na pasta docs/            ║
+║                                                                ║
+╚════════════════════════════════════════════════════════════════╝
+
+
+💡 DICA PRO:
+
+   Adicione o INICIAR_SISTEMA.bat aos programas de inicialização
+   do Windows para o sistema iniciar automaticamente com o PC!
+
+   1. Pressione Win+R
+   2. Digite: shell:startup
+   3. Copie o INICIAR_SISTEMA.bat para lá
+   4. Pronto! Inicialização automática configurada.
+
+
+🚀 BOM USO DO SENTINEL!
