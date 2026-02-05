@@ -32,6 +32,11 @@ passlib[bcrypt]>=1.7.4
 python-jose[cryptography]>=3.3.0
 python-multipart>=0.0.9
 slowapi>=0.1.9
+itsdangerous>=2.2.0  # CSRF token generation
+
+# Security Linters & Scanners (Development/CI)
+bandit>=1.9.3  # Security linter
+safety>=3.7.0  # Dependency vulnerability scanner
 
 # =====================================================
 # MVP2 Dependencies (Document Generation)

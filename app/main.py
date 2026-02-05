@@ -16,13 +16,18 @@ from app.utils.logger import setup_logger, get_logger
 from app.routers import bookings, conflicts, statistics, sync_actions, calendar, documents, emails
 from app.api.v1 import auth, health
 from app.middleware.security_headers import add_security_headers
+from app.middleware.csrf import CSRFProtectionMiddleware
 
 # Configurar logging
 setup_logger(log_level=settings.LOG_LEVEL, app_name=settings.APP_NAME)
 logger = get_logger(__name__)
 
-# Configurar rate limiter
-limiter = Limiter(key_func=get_remote_address)
+# Configurar rate limiter GLOBAL
+# Proteção contra DoS: limites aplicados a TODOS os endpoints
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=["100/minute", "1000/hour"]  # Global: 100 req/min, 1000 req/hora
+)
 
 
 # Tarefas de background
@@ -133,6 +138,9 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # Adicionar security headers middleware
 add_security_headers(app, environment=settings.APP_ENV)
 
+# Adicionar CSRF protection middleware
+app.add_middleware(CSRFProtectionMiddleware)
+
 # Configurar CORS para permitir acesso do frontend
 app.add_middleware(
     CORSMiddleware,
@@ -193,18 +201,34 @@ def api_info():
     }
 
 
-# Handler de erros global
+# Handler de erros global - PROTEÇÃO CONTRA INFORMATION DISCLOSURE
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
-    """Handler global de exceções"""
-    logger.error(f"Unhandled exception: {exc}")
-    logger.exception(exc)
+    """
+    Handler global de exceções.
 
+    SEGURANÇA: Nunca expõe stack traces ou detalhes de erro ao cliente.
+    Todos os erros são logados internamente com stack trace completo.
+    Cliente recebe apenas mensagem genérica.
+    """
+    # Log completo com stack trace (APENAS logs internos)
+    logger.error(
+        f"Unhandled exception on {request.method} {request.url.path}",
+        exc_info=True,  # Inclui stack trace completo nos logs
+        extra={
+            "method": request.method,
+            "url": str(request.url),
+            "client_host": request.client.host if request.client else "unknown"
+        }
+    )
+
+    # SEMPRE retornar mensagem genérica (mesmo em development)
+    # Desenvolvedores devem usar os logs para debugging
     return JSONResponse(
         status_code=500,
         content={
-            "error": "Internal server error",
-            "message": str(exc) if settings.APP_ENV == "development" else "An error occurred"
+            "error": "Internal Server Error",
+            "message": "An unexpected error occurred. Please try again later."
         }
     )
 

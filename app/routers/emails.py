@@ -3,10 +3,12 @@
 Router para envio e gerenciamento de emails.
 Suporta envio de templates, emails personalizados e busca via IMAP.
 """
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timedelta
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.database.session import get_db
 from app.models.user import User
@@ -30,6 +32,7 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/api/v1/emails", tags=["Emails"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 def get_email_service() -> EmailService:
@@ -64,8 +67,10 @@ def get_email_service() -> EmailService:
 
 
 @router.post("/send", response_model=EmailResponse)
+@limiter.limit("10/minute")  # Rate limit: máximo 10 emails por minuto
 async def send_email(
-    request: SendEmailRequest,
+    request: Request,
+    email_request: SendEmailRequest,
     email_service: EmailService = Depends(get_email_service),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -79,13 +84,13 @@ async def send_email(
     """
     try:
         result = await email_service.send_email(
-            to=request.to,
-            subject=request.subject,
-            body=request.body,
-            html=request.html,
-            cc=request.cc,
-            bcc=request.bcc,
-            attachments=request.attachments
+            to=email_request.to,
+            subject=email_request.subject,
+            body=email_request.body,
+            html=email_request.html,
+            cc=email_request.cc,
+            bcc=email_request.bcc,
+            attachments=email_request.attachments
         )
 
         if not result["success"]:
@@ -109,8 +114,10 @@ async def send_email(
 
 
 @router.post("/send-template", response_model=EmailResponse)
+@limiter.limit("10/minute")  # Rate limit: máximo 10 emails por minuto
 async def send_template_email(
-    request: SendTemplateEmailRequest,
+    request: Request,
+    email_request: SendTemplateEmailRequest,
     email_service: EmailService = Depends(get_email_service),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -124,13 +131,13 @@ async def send_template_email(
     """
     try:
         result = await email_service.send_template_email(
-            to=request.to,
-            subject=request.subject,
-            template_name=request.template_name,
-            context=request.context,
-            cc=request.cc,
-            bcc=request.bcc,
-            attachments=request.attachments
+            to=email_request.to,
+            subject=email_request.subject,
+            template_name=email_request.template_name,
+            context=email_request.context,
+            cc=email_request.cc,
+            bcc=email_request.bcc,
+            attachments=email_request.attachments
         )
 
         if not result["success"]:
@@ -154,8 +161,10 @@ async def send_template_email(
 
 
 @router.post("/send-booking-confirmation", response_model=EmailResponse)
+@limiter.limit("20/minute")  # Rate limit: confirmações podem ser mais frequentes
 async def send_booking_confirmation(
-    request: SendBookingConfirmationRequest,
+    request: Request,
+    booking_request: SendBookingConfirmationRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     email_service: EmailService = Depends(get_email_service),
@@ -171,12 +180,12 @@ async def send_booking_confirmation(
         EmailResponse com sucesso
     """
     # Buscar reserva
-    booking = db.query(Booking).filter(Booking.id == request.booking_id).first()
+    booking = db.query(Booking).filter(Booking.id == booking_request.booking_id).first()
 
     if not booking:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Reserva {request.booking_id} não encontrada"
+            detail=f"Reserva {booking_request.booking_id} não encontrada"
         )
 
     # Buscar imóvel
@@ -250,8 +259,10 @@ async def send_booking_confirmation(
 
 
 @router.post("/send-checkin-reminder", response_model=EmailResponse)
+@limiter.limit("20/minute")  # Rate limit: lembretes podem ser mais frequentes
 async def send_checkin_reminder(
-    request: SendCheckinReminderRequest,
+    request: Request,
+    reminder_request: SendCheckinReminderRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     email_service: EmailService = Depends(get_email_service),
@@ -267,12 +278,12 @@ async def send_checkin_reminder(
         EmailResponse com sucesso
     """
     # Buscar reserva
-    booking = db.query(Booking).filter(Booking.id == request.booking_id).first()
+    booking = db.query(Booking).filter(Booking.id == reminder_request.booking_id).first()
 
     if not booking:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Reserva {request.booking_id} não encontrada"
+            detail=f"Reserva {reminder_request.booking_id} não encontrada"
         )
 
     # Buscar imóvel
@@ -344,8 +355,9 @@ async def send_checkin_reminder(
 
 
 @router.post("/send-bulk-reminders", response_model=EmailResponse)
+@limiter.limit("5/hour")  # Rate limit RESTRITO: bulk emails apenas 5 por hora
 async def send_bulk_checkin_reminders(
-    background_tasks: BackgroundTasks,
+    request: Request,
     days_before: int = 1,
     db: Session = Depends(get_db),
     email_service: EmailService = Depends(get_email_service),
