@@ -9,6 +9,8 @@ from app.database.session import get_db
 from app.services.booking_service import BookingService
 from app.schemas.booking import BookingResponse, BookingListResponse, BookingCreate, BookingUpdate
 from app.models.booking import Booking
+from app.models.user import User
+from app.middleware.auth import get_current_active_user, get_current_admin_user
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -23,7 +25,8 @@ def list_bookings(
     status: Optional[str] = Query(None, description="Filtrar por status"),
     page: int = Query(1, ge=1, description="Número da página"),
     page_size: int = Query(50, ge=1, le=100, description="Itens por página"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)  # Requer autenticação
 ):
     """
     Lista todas as reservas com filtros opcionais.
@@ -51,7 +54,8 @@ def list_bookings(
 @router.get("/current", response_model=Optional[BookingResponse])
 def get_current_booking(
     property_id: int = Query(..., description="ID do imóvel"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     Retorna a reserva ativa no momento (hóspede atual).
@@ -69,7 +73,8 @@ def get_current_booking(
 def get_upcoming_bookings(
     property_id: int = Query(..., description="ID do imóvel"),
     limit: int = Query(5, ge=1, le=20, description="Número de reservas"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     Retorna as próximas N reservas futuras.
@@ -83,7 +88,8 @@ def get_upcoming_bookings(
 @router.get("/{booking_id}", response_model=BookingResponse)
 def get_booking(
     booking_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     Retorna detalhes de uma reserva específica.
@@ -100,7 +106,8 @@ def get_booking(
 @router.post("/", response_model=BookingResponse, status_code=201)
 def create_booking(
     booking_data: BookingCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     Cria uma nova reserva manual.
@@ -124,7 +131,8 @@ def create_booking(
 def update_booking(
     booking_id: int,
     booking_data: BookingUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     Atualiza dados de uma reserva.
@@ -157,7 +165,8 @@ def update_booking(
 @router.delete("/{booking_id}", status_code=204)
 def cancel_booking(
     booking_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     Cancela uma reserva (marca status como cancelled).
@@ -178,7 +187,8 @@ def cancel_booking(
 @router.get("/statistics/summary")
 def get_booking_statistics(
     property_id: int = Query(..., description="ID do imóvel"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     Retorna estatísticas gerais das reservas.

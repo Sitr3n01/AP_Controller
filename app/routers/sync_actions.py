@@ -8,6 +8,8 @@ from pydantic import BaseModel
 
 from app.database.session import get_db
 from app.services.sync_action_service import SyncActionService
+from app.models.user import User
+from app.middleware.auth import get_current_active_user
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -49,7 +51,8 @@ class ActionDismissRequest(BaseModel):
 def list_sync_actions(
     property_id: int = Query(..., description="ID do imóvel"),
     status: str = Query("pending", description="Status (pending/completed/dismissed)"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     Lista ações de sincronização.
@@ -87,7 +90,8 @@ def list_sync_actions(
 @router.get("/summary")
 def get_actions_summary(
     property_id: int = Query(..., description="ID do imóvel"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     Retorna resumo de ações.
@@ -102,7 +106,8 @@ def get_actions_summary(
 def complete_action(
     action_id: int,
     request: ActionCompleteRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     Marca uma ação como completada.
@@ -126,7 +131,8 @@ def complete_action(
 def dismiss_action(
     action_id: int,
     request: ActionDismissRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     Descarta uma ação.
@@ -149,7 +155,8 @@ def dismiss_action(
 @router.post("/auto-dismiss")
 def auto_dismiss_expired(
     property_id: int = Query(..., description="ID do imóvel"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     Auto-descarta ações expiradas.

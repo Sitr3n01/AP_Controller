@@ -10,6 +10,8 @@ from pydantic import BaseModel
 from app.database.session import get_db
 from app.services.calendar_service import CalendarService
 from app.services.booking_service import BookingService
+from app.models.user import User
+from app.middleware.auth import get_current_active_user
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -34,7 +36,8 @@ def get_calendar_events(
     property_id: int = Query(..., description="ID do imóvel"),
     start_date: date = Query(..., description="Data inicial"),
     end_date: date = Query(..., description="Data final"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     Retorna eventos do calendário para um período.
@@ -76,7 +79,8 @@ def get_calendar_events(
 @router.post("/sync")
 async def sync_calendar(
     property_id: int = Query(..., description="ID do imóvel"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     Força sincronização manual dos calendários.
@@ -95,7 +99,8 @@ async def sync_calendar(
 @router.get("/sync-status")
 def get_sync_status(
     property_id: int = Query(..., description="ID do imóvel"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     Retorna status da última sincronização.

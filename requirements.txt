@@ -25,14 +25,20 @@ pytz>=2024.2
 # Utilities
 python-dotenv>=1.0.1
 loguru>=0.7.2
+psutil>=5.9.0  # System monitoring
+
+# Security & Authentication
+passlib[bcrypt]>=1.7.4
+python-jose[cryptography]>=3.3.0
+python-multipart>=0.0.9
+slowapi>=0.1.9
 
 # =====================================================
 # MVP2 Dependencies (Document Generation)
-# Uncomment when needed:
 # =====================================================
-# python-docx-template>=0.18.0
-# python-docx>=1.1.0
-# weasyprint>=60.0
+python-docx>=1.1.2
+docxtpl>=0.18.0  # Template engine for DOCX
+Pillow>=10.0.0  # Image handling
 
 # =====================================================
 # MVP2 Dependencies (Telegram Bot)
@@ -40,13 +46,12 @@ loguru>=0.7.2
 python-telegram-bot>=21.0
 
 # =====================================================
-# MVP3 Dependencies (Email + LLM)
-# Uncomment when needed:
+# MVP2 Dependencies (Email - Universal IMAP/SMTP)
 # =====================================================
-# google-api-python-client>=2.150.0
-# google-auth-httplib2>=0.2.0
-# google-auth-oauthlib>=1.2.0
-# ollama>=0.4.0
+aiosmtplib>=3.0.0  # Async SMTP
+aioimaplib>=1.0.0  # Async IMAP
+email-validator>=2.0.0
+jinja2>=3.1.0  # Email templates
 
 # =====================================================
 # Testing (Optional - uncomment to run tests)

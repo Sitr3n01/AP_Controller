@@ -10,6 +10,8 @@ from app.database.session import get_db
 from app.core.conflict_detector import ConflictDetector
 from app.services.sync_action_service import SyncActionService
 from app.models.booking_conflict import BookingConflict
+from app.models.user import User
+from app.middleware.auth import get_current_active_user
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -51,7 +53,8 @@ class ConflictResolveRequest(BaseModel):
 def list_conflicts(
     property_id: int = Query(..., description="ID do imóvel"),
     active_only: bool = Query(True, description="Apenas conflitos ativos"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     Lista todos os conflitos.
@@ -95,7 +98,8 @@ def list_conflicts(
 @router.get("/summary")
 def get_conflict_summary(
     property_id: int = Query(..., description="ID do imóvel"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     Retorna resumo de conflitos.
@@ -110,7 +114,8 @@ def get_conflict_summary(
 def resolve_conflict(
     conflict_id: int,
     request: ConflictResolveRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     Marca um conflito como resolvido.
@@ -136,7 +141,8 @@ def resolve_conflict(
 @router.post("/detect")
 def detect_conflicts(
     property_id: int = Query(..., description="ID do imóvel"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     Força detecção de conflitos para um imóvel.

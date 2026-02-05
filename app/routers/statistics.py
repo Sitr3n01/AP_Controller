@@ -11,6 +11,8 @@ from app.services.sync_action_service import SyncActionService
 from app.services.notification_service import NotificationService
 from app.models.booking import Booking
 from app.models.sync_action import SyncAction
+from app.models.user import User
+from app.middleware.auth import get_current_active_user
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -21,7 +23,8 @@ router = APIRouter(prefix="/api/statistics", tags=["Statistics"])
 @router.get("/dashboard")
 def get_dashboard(
     property_id: int = Query(..., description="ID do imóvel"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     Retorna dados completos do dashboard.
@@ -96,7 +99,8 @@ def get_dashboard(
 def get_occupancy_stats(
     property_id: int = Query(..., description="ID do imóvel"),
     months: int = Query(6, ge=1, le=12, description="Número de meses para análise"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     Retorna estatísticas de ocupação.
@@ -175,7 +179,8 @@ def get_occupancy_stats(
 @router.get("/revenue")
 def get_revenue_stats(
     property_id: int = Query(..., description="ID do imóvel"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     Retorna estatísticas de receita (quando disponível).

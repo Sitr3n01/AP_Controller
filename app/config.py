@@ -29,6 +29,18 @@ class Settings(BaseSettings):
     BOOKING_ICAL_URL: str = Field(default="https://admin.booking.com/hotel/hoteladmin/ical/XXXXXXX.ics", description="URL do feed iCal do Booking")
     CALENDAR_SYNC_INTERVAL_MINUTES: int = 30
 
+    # === EMAIL UNIVERSAL (IMAP/SMTP) - MVP2 ===
+    EMAIL_PROVIDER: str = Field(default="gmail", description="Provider: gmail, outlook, yahoo, custom")
+    EMAIL_FROM: str = Field(default="", description="Email remetente")
+    EMAIL_PASSWORD: str = Field(default="", description="Senha do email ou app password")
+    EMAIL_SMTP_HOST: str = Field(default="", description="Host SMTP (customizado)")
+    EMAIL_SMTP_PORT: int = Field(default=587, description="Porta SMTP")
+    EMAIL_IMAP_HOST: str = Field(default="", description="Host IMAP (customizado)")
+    EMAIL_IMAP_PORT: int = Field(default=993, description="Porta IMAP")
+    EMAIL_USE_TLS: bool = Field(default=True, description="Usar TLS")
+    CONTACT_PHONE: str = Field(default="(62) 99999-9999", description="Telefone de contato")
+    CONTACT_EMAIL: str = Field(default="contato@sentinel.com", description="Email de contato")
+
     # === GMAIL API (MVP3) ===
     GMAIL_CREDENTIALS_FILE: str = "./credentials.json"
     GMAIL_TOKEN_FILE: str = "./token.json"
@@ -56,6 +68,25 @@ class Settings(BaseSettings):
     ENABLE_AUTO_DOCUMENT_GENERATION: bool = False
     ENABLE_CONFLICT_NOTIFICATIONS: bool = True
 
+    # === SEGURANÇA ===
+    SECRET_KEY: str = Field(
+        default="CHANGE_THIS_SECRET_KEY_IN_PRODUCTION",
+        description="Chave secreta para JWT - DEVE ser alterada em produção"
+    )
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+    # === CORS ===
+    CORS_ORIGINS: str = Field(
+        default="http://localhost:3000,http://localhost:5173",
+        description="Origins permitidas para CORS (separadas por vírgula)"
+    )
+
+    # === RATE LIMITING ===
+    RATE_LIMIT_ENABLED: bool = True
+    RATE_LIMIT_PER_MINUTE: int = 60
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -78,6 +109,11 @@ class Settings(BaseSettings):
     def admin_user_ids(self) -> List[int]:
         """Retorna lista de IDs de administradores"""
         return self.parse_admin_ids(self.TELEGRAM_ADMIN_USER_IDS)
+
+    @property
+    def cors_origins_list(self) -> List[str]:
+        """Retorna lista de origins permitidas para CORS"""
+        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
 
     @property
     def database_path(self) -> Path:

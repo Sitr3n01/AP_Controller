@@ -109,3 +109,28 @@ cython_debug/
 # Migrations (quando adicionar Alembic)
 # migrations/versions/*.py
 # !migrations/versions/__init__.py
+
+# Docker volumes
+.docker/
+docker-compose.override.yml
+
+# SSL certificates (development only)
+deployment/nginx/ssl/*.pem
+deployment/nginx/ssl/*.key
+deployment/nginx/ssl/*.crt
+
+# Backup data
+*.db.gz
+*.tar.gz
+*.zip
+
+# Temporary documentation (keep only in docs/)
+# (Arquivos .md na raiz devem estar em docs/)
+
+# Python compiled
+*.pyc
+*.pyo
+
+# Coverage reports
+.coverage.*
+coverage/

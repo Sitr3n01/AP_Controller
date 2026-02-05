@@ -4,17 +4,25 @@ Sistema de Gestão Automatizada de Apartamento
 """
 import asyncio
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from app.config import settings
 from app.utils.logger import setup_logger, get_logger
-from app.routers import bookings, conflicts, statistics, sync_actions, calendar
+from app.routers import bookings, conflicts, statistics, sync_actions, calendar, documents, emails
+from app.api.v1 import auth, health
+from app.middleware.security_headers import add_security_headers
 
 # Configurar logging
 setup_logger(log_level=settings.LOG_LEVEL, app_name=settings.APP_NAME)
 logger = get_logger(__name__)
+
+# Configurar rate limiter
+limiter = Limiter(key_func=get_remote_address)
 
 
 # Tarefas de background
@@ -69,6 +77,13 @@ async def lifespan(app: FastAPI):
     # Iniciar task de sincronização periódica
     sync_task = asyncio.create_task(sync_calendar_periodically())
 
+    # Iniciar task de backup automático (apenas em produção)
+    backup_task = None
+    if settings.APP_ENV == "production":
+        from app.core.backup import scheduled_backup_task
+        backup_task = asyncio.create_task(scheduled_backup_task())
+        logger.info("Automatic backup task started")
+
     logger.info(f"{settings.APP_NAME} started successfully!")
     logger.info(f"Environment: {settings.APP_ENV}")
     logger.info(f"Sync interval: {settings.CALENDAR_SYNC_INTERVAL_MINUTES} minutes")
@@ -92,6 +107,14 @@ async def lifespan(app: FastAPI):
     except asyncio.CancelledError:
         pass
 
+    # Parar task de backup
+    if backup_task:
+        backup_task.cancel()
+        try:
+            await backup_task
+        except asyncio.CancelledError:
+            pass
+
     logger.info("Shutdown complete")
 
 
@@ -103,22 +126,28 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Adicionar rate limiter ao app
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Adicionar security headers middleware
+add_security_headers(app, environment=settings.APP_ENV)
+
 # Configurar CORS para permitir acesso do frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",  # React dev
-        "http://localhost:5173",  # Vite dev
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=settings.cors_origins_list,  # Usar configuração do settings
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],  # Especificar métodos
+    allow_headers=["Authorization", "Content-Type"],  # Especificar headers
 )
 
 
 # Incluir routers
+app.include_router(auth.router, prefix="/api/v1")  # Autenticação
+app.include_router(health.router, prefix="/api/v1")  # Health checks
+app.include_router(documents.router)  # Geração de documentos
+app.include_router(emails.router)  # Sistema de emails
 app.include_router(bookings.router)
 app.include_router(conflicts.router)
 app.include_router(statistics.router)
