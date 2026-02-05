@@ -4,6 +4,7 @@ Endpoints de autenticação: login, registro, mudança de senha.
 """
 from datetime import timedelta, datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -21,9 +22,11 @@ from app.schemas.auth import (
     Token
 )
 from app.middleware.auth import get_current_user, get_current_active_user, get_current_admin_user
+from app.core.token_blacklist import get_token_blacklist
 
 router = APIRouter(prefix="/auth", tags=["Autenticação"])
 limiter = Limiter(key_func=get_remote_address)
+security = HTTPBearer()
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -239,24 +242,39 @@ def change_password(
     current_user.hashed_password = get_password_hash(password_data.new_password)
     db.commit()
 
-    return {"message": "Senha alterada com sucesso"}
+    # REVOGAR TODOS os tokens do usuário (segurança)
+    # Usuário precisará fazer login novamente com nova senha
+    blacklist = get_token_blacklist()
+    token_exp = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    blacklist.revoke_all_user_tokens(current_user.id, token_exp)
+
+    return {
+        "message": "Senha alterada com sucesso. Faça login novamente com a nova senha."
+    }
 
 
 @router.post("/logout", status_code=status.HTTP_200_OK)
 def logout(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    Logout do usuário (no frontend, apenas descarta o token).
+    Logout do usuário com invalidação server-side do token.
 
-    Note: Como JWT é stateless, não há invalidação server-side.
-    O frontend deve descartar o token ao fazer logout.
+    Adiciona token atual à blacklist (Redis ou in-memory).
+    Token não poderá ser reutilizado até expiração natural.
 
     Returns:
         dict: Mensagem de sucesso
     """
-    # Em produção, poderia adicionar token a uma blacklist com Redis
-    return {"message": "Logout realizado com sucesso"}
+    token = credentials.credentials
+
+    # Adicionar token à blacklist
+    blacklist = get_token_blacklist()
+    token_exp = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    blacklist.revoke_token(token, token_exp)
+
+    return {"message": "Logout realizado com sucesso. Token invalidado."}
 
 
 @router.delete("/delete-account", status_code=status.HTTP_200_OK)

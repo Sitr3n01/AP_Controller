@@ -1,15 +1,17 @@
 # app/middleware/auth.py
 """
-Middleware de autenticação JWT.
+Middleware de autenticação JWT com Token Blacklist.
 """
 from fastapi import Request, HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from typing import Optional
+from datetime import datetime
 
 from app.core.security import decode_access_token
 from app.database.session import get_db
 from app.models.user import User
+from app.core.token_blacklist import get_token_blacklist
 
 # Security scheme para Swagger UI
 security = HTTPBearer()
@@ -40,6 +42,15 @@ def get_current_user(
     """
     token = credentials.credentials
 
+    # Verificar blacklist ANTES de decodificar (economiza processamento)
+    blacklist = get_token_blacklist()
+    if blacklist.is_revoked(token):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token foi revogado (logout ou senha alterada)",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     # Decodificar token
     try:
         payload = decode_access_token(token)
@@ -56,6 +67,18 @@ def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token inválido: user_id não encontrado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Verificar se TODOS os tokens do usuário foram revogados
+    token_issued_at = payload.get("iat")
+    if token_issued_at and blacklist.is_user_revoked(
+        int(user_id),
+        datetime.fromtimestamp(token_issued_at)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token foi revogado (senha alterada)",
             headers={"WWW-Authenticate": "Bearer"},
         )
 

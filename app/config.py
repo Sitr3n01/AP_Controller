@@ -77,6 +77,12 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    # Redis para Token Blacklist (opcional, usa in-memory se não configurado)
+    REDIS_URL: str = Field(
+        default="",
+        description="URL do Redis (ex: redis://localhost:6379/0). Deixe vazio para usar in-memory"
+    )
+
     # === CORS ===
     CORS_ORIGINS: str = Field(
         default="http://localhost:3000,http://localhost:5173",

@@ -33,6 +33,7 @@ python-jose[cryptography]>=3.3.0
 python-multipart>=0.0.9
 slowapi>=0.1.9
 itsdangerous>=2.2.0  # CSRF token generation
+redis>=5.0.0  # Token blacklist (opcional, usa in-memory se não configurado)
 
 # Security Linters & Scanners (Development/CI)
 bandit>=1.9.3  # Security linter
