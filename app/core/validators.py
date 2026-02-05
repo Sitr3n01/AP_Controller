@@ -104,6 +104,8 @@ def sanitize_filename(filename: str) -> str:
     """
     Sanitiza nome de arquivo removendo caracteres perigosos.
 
+    SECURITY: Remove path traversal, caracteres especiais e normaliza pontos.
+
     Args:
         filename: Nome do arquivo original
 
@@ -112,18 +114,31 @@ def sanitize_filename(filename: str) -> str:
 
     Example:
         >>> sanitize_filename("../../etc/passwd")
-        "..etcpasswd"
+        "etcpasswd"
         >>> sanitize_filename("file<script>.txt")
         "filescript.txt"
+        >>> sanitize_filename("file..name.docx")
+        "file.name.docx"
     """
     if not filename:
         return "unnamed"
 
-    # Remover path traversal
-    filename = filename.replace("../", "").replace("..\\", "")
+    # Remover path traversal (múltiplas passagens para pegar casos recursivos)
+    for _ in range(5):  # Múltiplas passagens
+        filename = filename.replace("../", "").replace("..\\", "")
+
+    # Remover paths absolutos e relativos
+    filename = filename.replace("/", "").replace("\\", "")
 
     # Remover caracteres perigosos, manter apenas alfanuméricos, pontos, hífens, underscores
     filename = re.sub(r'[^a-zA-Z0-9._-]', '', filename)
+
+    # Remover pontos duplicados (.. -> .)
+    while ".." in filename:
+        filename = filename.replace("..", ".")
+
+    # Remover pontos no início (arquivos ocultos Unix)
+    filename = filename.lstrip(".")
 
     # Garantir que não está vazio após sanitização
     if not filename:

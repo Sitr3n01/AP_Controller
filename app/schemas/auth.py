@@ -25,7 +25,13 @@ class TokenData(BaseModel):
 # === USER SCHEMAS ===
 
 class UserBase(BaseModel):
-    """Base schema para usuário"""
+    """
+    Base schema para usuário.
+
+    SECURITY NOTE: Este schema contém APENAS campos que usuários podem fornecer.
+    Campos privilegiados (is_admin, is_active, failed_login_attempts, locked_until)
+    NUNCA devem ser adicionados aqui.
+    """
     email: EmailStr
     username: str = Field(..., min_length=3, max_length=100)
     full_name: Optional[str] = Field(None, max_length=200)
@@ -42,6 +48,9 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     """Schema para criação de usuário"""
     password: str = Field(..., min_length=8, max_length=100)
+
+    # SECURITY FIX: Prevenir mass assignment
+    model_config = {"extra": "forbid"}  # Rejeitar campos extras
 
     @field_validator('password')
     @classmethod

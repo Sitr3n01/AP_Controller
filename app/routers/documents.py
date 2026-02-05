@@ -14,6 +14,9 @@ from app.models.property import Property
 from app.models.guest import Guest
 from app.middleware.auth import get_current_active_user
 from app.services.document_service import DocumentService
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
 from app.schemas.document import (
     GenerateDocumentRequest,
     GenerateDocumentFromBookingRequest,
@@ -134,8 +137,8 @@ def generate_document_from_booking(
     # Preparar dados
     booking_data = {
         "id": booking.id,
-        "check_in": booking.check_in,
-        "check_out": booking.check_out
+        "check_in": booking.check_in_date,  # FIX: Usar check_in_date (não check_in)
+        "check_out": booking.check_out_date  # FIX: Usar check_out_date (não check_out)
     }
 
     property_data = {
@@ -193,6 +196,7 @@ def list_documents(
 @router.get("/download/{filename}")
 def download_document(
     filename: str,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
     """
@@ -204,7 +208,58 @@ def download_document(
     Returns:
         FileResponse com o documento
     """
-    file_path = doc_service.get_document_path(filename)
+    # SECURITY FIX: Validar filename para prevenir path traversal
+    from app.core.validators import sanitize_filename
+    import os
+    import re
+
+    # Sanitizar filename
+    safe_filename = sanitize_filename(filename)
+
+    # Verificar se filename foi alterado (tentativa de path traversal)
+    if safe_filename != filename:
+        logger.warning(f"Path traversal attempt detected: {filename}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Nome de arquivo inválido"
+        )
+
+    # Verificar extensão permitida
+    allowed_extensions = {'.docx', '.pdf', '.txt'}
+    file_ext = os.path.splitext(safe_filename)[1].lower()
+    if file_ext not in allowed_extensions:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tipo de arquivo não permitido"
+        )
+
+    # SECURITY FIX (IDOR): Validar autorização para acessar documento
+    # Extrair booking_id do filename (padrão: condo_auth_booking_<id>_timestamp.docx)
+    booking_match = re.search(r'booking_(\d+)', safe_filename)
+
+    if booking_match:
+        booking_id = int(booking_match.group(1))
+
+        # Buscar booking para validar permissão
+        booking = db.query(Booking).filter(Booking.id == booking_id).first()
+
+        if not booking:
+            logger.warning(f"IDOR attempt: User {current_user.id} tried to access non-existent booking {booking_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Documento não encontrado"
+            )
+
+        # Validar que usuário tem permissão
+        # Por enquanto: apenas admins (TODO: adicionar user_id em Property model)
+        if not current_user.is_admin:
+            logger.warning(f"IDOR attempt: User {current_user.id} tried to access document for booking {booking_id}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Você não tem permissão para acessar este documento"
+            )
+
+    file_path = doc_service.get_document_path(safe_filename)
 
     if not file_path:
         raise HTTPException(
@@ -212,9 +267,27 @@ def download_document(
             detail="Documento não encontrado"
         )
 
+    # SECURITY FIX: Verificar que o arquivo está dentro do output_dir
+    try:
+        file_path_resolved = file_path.resolve()
+        output_dir_resolved = doc_service.output_dir.resolve()
+
+        if not str(file_path_resolved).startswith(str(output_dir_resolved)):
+            logger.error(f"Path traversal blocked: {filename} -> {file_path_resolved}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Acesso negado"
+            )
+    except Exception as e:
+        logger.error(f"Error resolving path: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro ao processar arquivo"
+        )
+
     return FileResponse(
-        path=str(file_path),
-        filename=filename,
+        path=str(file_path_resolved),
+        filename=safe_filename,
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     )
 
@@ -280,8 +353,12 @@ async def generate_and_download(
     file_bytes = result.get("file_bytes")
     filename = result.get("filename")
 
+    # FIX: Safe Content-Disposition header with quoted filename
+    from urllib.parse import quote
+    safe_filename_encoded = quote(filename, safe='.-_')
+
     return StreamingResponse(
         io.BytesIO(file_bytes),
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
+        headers={"Content-Disposition": f'attachment; filename="{filename}"; filename*=UTF-8\'\'{safe_filename_encoded}'}
     )

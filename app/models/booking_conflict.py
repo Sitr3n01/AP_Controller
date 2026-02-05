@@ -2,7 +2,7 @@
 Modelo BookingConflict - Registra conflitos/sobreposições entre reservas.
 """
 from datetime import date, datetime
-from sqlalchemy import String, Integer, Boolean, Date, DateTime, ForeignKey, Text, Enum as SQLEnum
+from sqlalchemy import String, Integer, Boolean, Date, DateTime, ForeignKey, Text, Enum as SQLEnum, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import TYPE_CHECKING
 import enum
@@ -23,6 +23,13 @@ class BookingConflict(Base):
     """Modelo de conflito entre reservas"""
 
     __tablename__ = "booking_conflicts"
+
+    # FIX: UNIQUE constraint para prevenir race conditions e duplicatas
+    __table_args__ = (
+        UniqueConstraint('booking_id_1', 'booking_id_2', 'conflict_type',
+                        name='uq_conflict_pair',
+                        info={'description': 'Previne conflitos duplicados'}),
+    )
 
     id: Mapped[int] = mapped_column(
         Integer,

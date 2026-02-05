@@ -66,13 +66,19 @@ def register(
     # Criar usuário
     hashed_password = get_password_hash(user_data.password)
 
+    # SECURITY FIX: Criar usuário com campos explícitos para prevenir mass assignment
+    # NUNCA usar **user_data.dict() ou similar que possa incluir campos extras
     new_user = User(
         email=user_data.email,
         username=user_data.username,
         hashed_password=hashed_password,
         full_name=user_data.full_name,
+        # CRITICAL: Sempre definir explicitamente campos de privilégio
         is_active=True,
         is_admin=False,  # Primeiro usuário pode ser tornado admin manualmente no DB
+        # CRITICAL: Garantir que failed_login_attempts inicia em 0
+        failed_login_attempts=0,
+        locked_until=None
     )
 
     db.add(new_user)

@@ -159,11 +159,24 @@ class ConflictDetector:
             resolved=False
         )
 
-        self.db.add(conflict)
-        self.db.commit()
-        self.db.refresh(conflict)
-
-        logger.info(f"Conflict registered: ID={conflict.id}, type={conflict_type.value}, severity={conflict.severity}")
+        # FIX: Tratar race condition com IntegrityError
+        from sqlalchemy.exc import IntegrityError
+        try:
+            self.db.add(conflict)
+            self.db.commit()
+            self.db.refresh(conflict)
+            logger.info(f"Conflict registered: ID={conflict.id}, type={conflict_type.value}, severity={conflict.severity}")
+        except IntegrityError:
+            # Race condition: outro request já criou este conflito
+            self.db.rollback()
+            existing = self._get_existing_conflict(booking1.id, booking2.id)
+            if existing:
+                conflict = existing
+                logger.debug(f"Conflict already exists (race condition): ID={conflict.id}")
+            else:
+                # Caso muito raro: re-raise error
+                logger.error("IntegrityError but conflict not found")
+                raise
 
         return conflict
 
@@ -186,6 +199,11 @@ class ConflictDetector:
         # Mesma plataforma = não é duplicata
         if booking1.platform == booking2.platform:
             return False
+
+        # FIX: Validar que datas existem antes de calcular diferença
+        if not booking1.check_in_date or not booking2.check_in_date or \
+           not booking1.check_out_date or not booking2.check_out_date:
+            return False  # Não pode ser duplicata se tem datas incompletas
 
         # Verificar datas
         date_diff_in = abs((booking1.check_in_date - booking2.check_in_date).days)

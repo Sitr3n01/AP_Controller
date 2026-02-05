@@ -9,7 +9,7 @@ from app.services.booking_service import BookingService
 from app.core.conflict_detector import ConflictDetector
 from app.services.sync_action_service import SyncActionService
 from app.services.notification_service import NotificationService
-from app.models.booking import Booking
+from app.models.booking import Booking, BookingStatus
 from app.models.sync_action import SyncAction
 from app.models.user import User
 from app.middleware.auth import get_current_active_user
@@ -58,12 +58,16 @@ def get_dashboard(
     # Formatar reserva atual
     current = None
     if current_booking:
+        from app.utils.date_utils import today_local
+        today = today_local()
+        nights_remaining = (current_booking.check_out_date - today).days
+
         current = {
             "id": current_booking.id,
             "guest_name": current_booking.guest_name,
             "check_out_date": current_booking.check_out_date.isoformat(),
             "platform": current_booking.platform,
-            "nights_remaining": (current_booking.check_out_date - booking_service.db.query(Booking).first().check_in_date).days
+            "nights_remaining": max(0, nights_remaining)  # Não pode ser negativo
         }
 
     # Formatar próximas reservas
@@ -121,6 +125,8 @@ def get_occupancy_stats(
     )
 
     # Calcular noites ocupadas por mês
+    import calendar
+
     monthly_data = {}
     for booking in bookings:
         # Determinar meses cobertos pela reserva
@@ -129,10 +135,14 @@ def get_occupancy_stats(
             month_key = current_date.strftime("%Y-%m")
 
             if month_key not in monthly_data:
+                # FIX: Calcular número real de dias do mês (não hardcoded 30)
+                year, month = map(int, month_key.split('-'))
+                days_in_month = calendar.monthrange(year, month)[1]
+
                 monthly_data[month_key] = {
                     "month": month_key,
                     "occupied_nights": 0,
-                    "total_nights": 30,  # Simplificado
+                    "total_nights": days_in_month,  # FIX: Usar dias reais do mês
                     "bookings_count": 0,
                     "airbnb_nights": 0,
                     "booking_nights": 0
@@ -203,18 +213,18 @@ def get_revenue_stats(
     # Calcular receita
     total_revenue = sum(
         float(b.total_price) for b in bookings
-        if b.total_price and b.status.value == "confirmed"
+        if b.total_price and b.status == BookingStatus.CONFIRMED
     )
 
     # Por plataforma
     airbnb_revenue = sum(
         float(b.total_price) for b in bookings
-        if b.total_price and b.platform == "airbnb" and b.status.value == "confirmed"
+        if b.total_price and b.platform == "airbnb" and b.status == BookingStatus.CONFIRMED  # FIX: Usar enum
     )
 
     booking_revenue = sum(
         float(b.total_price) for b in bookings
-        if b.total_price and b.platform == "booking" and b.status.value == "confirmed"
+        if b.total_price and b.platform == "booking" and b.status == BookingStatus.CONFIRMED  # FIX: Usar enum
     )
 
     # Reservas com preço

@@ -3,7 +3,7 @@
 Schemas Pydantic para envio e gerenciamento de emails.
 """
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class SendEmailRequest(BaseModel):
@@ -18,6 +18,14 @@ class SendEmailRequest(BaseModel):
         None,
         description="Lista de anexos (cada item: {filename, content, content_type})"
     )
+
+    @field_validator('subject', 'body')
+    @classmethod
+    def validate_no_header_injection(cls, v: str) -> str:
+        """FIX: Prevenir SMTP header injection via newlines"""
+        if '\r' in v or '\n' in v:
+            raise ValueError('Subject e body não podem conter caracteres de newline (\\r ou \\n)')
+        return v
 
 
 class SendTemplateEmailRequest(BaseModel):

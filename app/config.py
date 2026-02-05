@@ -70,12 +70,52 @@ class Settings(BaseSettings):
 
     # === SEGURANÇA ===
     SECRET_KEY: str = Field(
-        default="CHANGE_THIS_SECRET_KEY_IN_PRODUCTION",
-        description="Chave secreta para JWT - DEVE ser alterada em produção"
+        default="",  # FIX: Sem default fraco, força configuração
+        description="Chave secreta para JWT - OBRIGATÓRIA em produção"
     )
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+    @field_validator("SECRET_KEY")
+    @classmethod
+    def validate_secret_key(cls, v: str, info) -> str:
+        """Valida que SECRET_KEY é adequada para o ambiente"""
+        import secrets
+
+        env = info.data.get("APP_ENV", "production")
+
+        # Em produção, SECRET_KEY é OBRIGATÓRIA e deve ser forte
+        if env == "production":
+            if not v or v == "CHANGE_THIS_SECRET_KEY_IN_PRODUCTION":
+                raise ValueError(
+                    "\n\n"
+                    "=" * 70 + "\n"
+                    "ERRO FATAL: SECRET_KEY não configurada para PRODUÇÃO!\n"
+                    "=" * 70 + "\n"
+                    "A SECRET_KEY é obrigatória e deve ser criptograficamente segura.\n\n"
+                    "Como gerar uma SECRET_KEY segura:\n"
+                    "  python -c 'import secrets; print(secrets.token_urlsafe(32))'\n\n"
+                    "Adicione ao arquivo .env:\n"
+                    "  SECRET_KEY=<chave_gerada_acima>\n"
+                    "=" * 70 + "\n"
+                )
+
+            # Validar comprimento mínimo
+            if len(v) < 32:
+                raise ValueError(
+                    f"SECRET_KEY muito curta ({len(v)} caracteres). "
+                    f"Mínimo requerido: 32 caracteres"
+                )
+
+        # Em desenvolvimento, gerar uma aleatória se não configurada
+        if env in ["development", "testing"]:
+            if not v or v == "CHANGE_THIS_SECRET_KEY_IN_PRODUCTION":
+                v = secrets.token_urlsafe(32)
+                print(f"[WARNING] SECRET_KEY não configurada. Usando temporária para {env}.")
+                print(f"[INFO] Para uso permanente, adicione ao .env: SECRET_KEY={v}")
+
+        return v
 
     # Redis para Token Blacklist (opcional, usa in-memory se não configurado)
     REDIS_URL: str = Field(

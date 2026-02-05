@@ -6,6 +6,8 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-green.svg)](https://fastapi.tiangolo.com/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Security](https://img.shields.io/badge/Security-92%2F100-brightgreen.svg)](CORRECOES_SEGURANCA_FASE3_FINAL.md)
+[![Bugs](https://img.shields.io/badge/Critical_Bugs-0%2F5-brightgreen.svg)](CORRECOES_BUGS_CRITICOS.md)
+[![Vulnerabilities](https://img.shields.io/badge/Critical_Vulns-0%2F3-brightgreen.svg)](CORRECOES_VULNERABILIDADES_CRITICAS.md)
 
 ---
 

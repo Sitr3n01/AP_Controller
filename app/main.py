@@ -61,10 +61,40 @@ async def sync_calendar_periodically():
             await asyncio.sleep(60)  # Espera 1 minuto em caso de erro
 
 
+def validate_security_settings():
+    """Valida configurações críticas de segurança antes do startup"""
+    errors = []
+
+    # Validar SECRET_KEY (já validado pelo Pydantic, mas double-check)
+    if settings.APP_ENV == "production":
+        if settings.SECRET_KEY == "CHANGE_THIS_SECRET_KEY_IN_PRODUCTION":
+            errors.append("SECRET_KEY usa valor padrão inseguro")
+
+        if len(settings.SECRET_KEY) < 32:
+            errors.append(f"SECRET_KEY muito curta ({len(settings.SECRET_KEY)} chars, mínimo: 32)")
+
+        # Avisar se CORS está aberto
+        if hasattr(settings, 'cors_origins_list') and "*" in settings.cors_origins_list:
+            logger.warning("⚠️  SECURITY: CORS está aberto para todas as origins!")
+
+    if errors:
+        logger.error("=" * 70)
+        logger.error("ERROS CRÍTICOS DE SEGURANÇA DETECTADOS:")
+        for error in errors:
+            logger.error(f"  - {error}")
+        logger.error("=" * 70)
+        raise ValueError(f"Security validation failed: {'; '.join(errors)}")
+
+    logger.info("✅ Security settings validated")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Gerencia o ciclo de vida da aplicação"""
     logger.info(f"Starting {settings.APP_NAME}...")
+
+    # SECURITY FIX: Validar configurações de segurança
+    validate_security_settings()
 
     # Garantir que diretórios existem
     settings.ensure_directories()

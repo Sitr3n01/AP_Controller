@@ -6,7 +6,7 @@ Gerencia invalidação de tokens JWT (logout, password change, etc).
 Suporta Redis (produção) com fallback para in-memory (desenvolvimento).
 """
 import time
-from typing import Optional, Set
+from typing import Optional, Set, Dict
 from datetime import datetime, timedelta
 from app.utils.logger import get_logger
 from app.config import settings
@@ -32,7 +32,9 @@ class TokenBlacklist:
     def __init__(self):
         self._redis_client: Optional[object] = None
         self._memory_blacklist: Set[str] = set()
+        self._memory_expiry: Dict[str, float] = {}  # FIX: Track expiration times
         self._setup_redis()
+        self._start_cleanup_task()  # FIX: Iniciar limpeza automática
 
     def _setup_redis(self):
         """Tenta conectar ao Redis, usa in-memory como fallback"""
@@ -221,30 +223,62 @@ class TokenBlacklist:
     def _schedule_cleanup(self, key: str, delay_seconds: int):
         """
         Agenda remoção da blacklist in-memory após TTL.
-
-        Nota: Implementação simplificada. Em produção use:
-        - Background task com asyncio
-        - Ou Redis que faz isso automaticamente
+        FIX: Armazena timestamp de expiração para limpeza posterior.
         """
-        # Em produção, use asyncio.create_task ou background worker
-        # Por agora, apenas loga (limpeza será feita na próxima verificação)
-        pass
+        if not self._redis_client:
+            # Armazenar tempo de expiração
+            expiration_time = time.time() + delay_seconds
+            self._memory_expiry[key] = expiration_time
 
     def clear_expired(self):
         """
         Remove tokens expirados da blacklist in-memory.
-
-        Deve ser chamado periodicamente por background task.
-        Redis faz isso automaticamente via TTL.
+        FIX: Implementação real de limpeza.
         """
         if self._redis_client:
             # Redis já limpa automaticamente
             return
 
-        # In-memory: não temos como saber quais expiraram
-        # Em produção, armazene tupla (key, expires_at)
-        # Por agora, aceite que memory cresce até restart
-        logger.debug(f"In-memory blacklist size: {len(self._memory_blacklist)}")
+        # FIX: Limpar tokens expirados baseado em timestamp
+        current_time = time.time()
+        expired_keys = [
+            k for k, exp_time in self._memory_expiry.items()
+            if exp_time <= current_time
+        ]
+
+        for key in expired_keys:
+            self._memory_blacklist.discard(key)
+            del self._memory_expiry[key]
+
+        if expired_keys:
+            logger.info(f"Cleaned {len(expired_keys)} expired tokens from memory blacklist")
+        else:
+            logger.debug(f"In-memory blacklist size: {len(self._memory_blacklist)} active tokens")
+
+    def _start_cleanup_task(self):
+        """FIX: Inicia task de limpeza periódica para in-memory blacklist"""
+        if self._redis_client:
+            return  # Redis não precisa de limpeza manual
+
+        import asyncio
+        try:
+            # Tentar criar task se loop está disponível
+            asyncio.create_task(self._periodic_cleanup())
+            logger.info("Started periodic cleanup task for in-memory token blacklist")
+        except RuntimeError:
+            # Loop não disponível (startup), será chamado manualmente
+            logger.warning("Could not start cleanup task (no event loop). Call clear_expired() manually.")
+
+    async def _periodic_cleanup(self):
+        """FIX: Task assíncrona que limpa tokens expirados a cada 5 minutos"""
+        import asyncio
+        while True:
+            try:
+                await asyncio.sleep(300)  # 5 minutos
+                self.clear_expired()
+            except Exception as e:
+                logger.error(f"Error in periodic cleanup task: {e}")
+                await asyncio.sleep(60)  # Wait 1 min on error
 
     def get_stats(self) -> dict:
         """Retorna estatísticas da blacklist"""

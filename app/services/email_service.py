@@ -176,10 +176,13 @@ class EmailService:
         """
         try:
             # Criar mensagem
+            import uuid
             msg = MIMEMultipart()
             msg["From"] = self.config.username
             msg["To"] = ", ".join(to)
             msg["Subject"] = subject
+            # FIX: Garantir Message-ID para rastreamento
+            msg["Message-ID"] = f"<{uuid.uuid4()}@sentinel.local>"
 
             if cc:
                 msg["Cc"] = ", ".join(cc)
@@ -192,12 +195,16 @@ class EmailService:
 
             # Adicionar anexos
             if attachments:
+                from app.core.validators import sanitize_filename
                 for attachment in attachments:
+                    # FIX: Sanitizar filename do attachment
+                    safe_filename = sanitize_filename(attachment["filename"])
+
                     part = MIMEApplication(attachment["content"])
                     part.add_header(
                         "Content-Disposition",
                         "attachment",
-                        filename=attachment["filename"]
+                        filename=safe_filename
                     )
                     msg.attach(part)
 
@@ -263,9 +270,48 @@ class EmailService:
             ... )
         """
         try:
+            # SECURITY FIX: Validar template_name para prevenir path traversal
+            import os
+
+            # Remover path traversal attempts
+            safe_template_name = os.path.basename(template_name)
+
+            # Verificar se template_name foi alterado (tentativa de path traversal)
+            if safe_template_name != template_name or '..' in template_name or '/' in template_name or '\\' in template_name:
+                logger.warning(f"Template path traversal attempt detected: {template_name}")
+                return {
+                    "success": False,
+                    "message": "Nome de template inválido"
+                }
+
+            # Whitelist de templates permitidos
+            ALLOWED_TEMPLATES = {
+                'booking_confirmation.html',
+                'checkin_reminder.html',
+                'checkout_reminder.html',
+                'payment_receipt.html',
+                'welcome_email.html'
+            }
+
+            if safe_template_name not in ALLOWED_TEMPLATES:
+                logger.warning(f"Attempt to use non-whitelisted template: {safe_template_name}")
+                return {
+                    "success": False,
+                    "message": f"Template '{safe_template_name}' não está na lista de templates permitidos"
+                }
+
+            # SECURITY FIX: Sanitizar valores do context para prevenir XSS
+            from app.core.validators import sanitize_html
+            sanitized_context = {}
+            for key, value in context.items():
+                if isinstance(value, str):
+                    sanitized_context[key] = sanitize_html(value)
+                else:
+                    sanitized_context[key] = value
+
             # Carregar e renderizar template
-            template = self.template_env.get_template(template_name)
-            html_body = template.render(**context)
+            template = self.template_env.get_template(safe_template_name)
+            html_body = template.render(**sanitized_context)
 
             # Enviar email com HTML
             return await self.send_email(
@@ -294,38 +340,32 @@ class EmailService:
         """
         Envia email usando template inline (string).
 
-        Útil para templates dinâmicos que não estão em arquivo.
+        SECURITY WARNING: Esta função foi DESABILITADA por motivos de segurança.
+        Templates inline podem causar Server-Side Template Injection (SSTI).
+        Use send_template_email() com templates pré-definidos em arquivos.
 
         Args:
             to: Lista de destinatários
             subject: Assunto
-            template_string: Template HTML como string
+            template_string: Template HTML como string (NÃO USADO)
             context: Variáveis do template
             **kwargs: Argumentos adicionais
 
         Returns:
-            Dict com resultado do envio
+            Dict com erro de segurança
         """
-        try:
-            # Renderizar template inline
-            template = Template(template_string)
-            html_body = template.render(**context)
-
-            # Enviar email
-            return await self.send_email(
-                to=to,
-                subject=subject,
-                body=html_body,
-                html=True,
-                **kwargs
+        # SECURITY FIX: Desabilitar templates inline para prevenir SSTI
+        logger.error(
+            "Tentativa de uso de send_inline_template_email() detectada. "
+            "Esta função foi desabilitada por motivos de segurança (SSTI risk)."
+        )
+        return {
+            "success": False,
+            "message": (
+                "Templates inline foram desabilitados por motivos de segurança. "
+                "Use send_template_email() com templates em arquivo."
             )
-
-        except Exception as e:
-            logger.error(f"Error sending inline template email: {e}")
-            return {
-                "success": False,
-                "message": f"Erro ao enviar email: {str(e)}"
-            }
+        }
 
     async def fetch_emails(
         self,
@@ -352,6 +392,8 @@ class EmailService:
             >>> for email in result["emails"]:
             ...     print(email["subject"])
         """
+        # FIX: Usar try/finally para garantir cleanup da conexão IMAP
+        imap = None
         try:
             # Conectar IMAP
             imap = aioimaplib.IMAP4_SSL(
@@ -371,8 +413,26 @@ class EmailService:
 
             _, data = await imap.search(search_criteria)
 
+            # FIX: Validar resposta antes de processar
+            if not data or not data[0]:
+                logger.info(f"No emails found in folder {folder}")
+                return {
+                    "success": True,
+                    "emails": [],
+                    "count": 0,
+                    "message": "Nenhum email encontrado"
+                }
+
             # Processar IDs dos emails
             email_ids = data[0].split()
+            if not email_ids:
+                return {
+                    "success": True,
+                    "emails": [],
+                    "count": 0,
+                    "message": "Nenhum email encontrado"
+                }
+
             email_ids = email_ids[-limit:]  # Pegar últimos N emails
 
             emails = []
@@ -385,8 +445,6 @@ class EmailService:
                     "raw": msg_data[0][1].decode(errors="ignore")
                     # TODO: Parsear subject, from, date, body, etc
                 })
-
-            await imap.logout()
 
             logger.info(f"Fetched {len(emails)} emails from {folder}")
 
@@ -405,6 +463,14 @@ class EmailService:
                 "count": 0,
                 "message": f"Erro ao buscar emails: {str(e)}"
             }
+
+        finally:
+            # FIX: Garantir logout mesmo em caso de erro
+            if imap:
+                try:
+                    await imap.logout()
+                except Exception as e:
+                    logger.debug(f"Error during IMAP logout (expected if connection failed): {e}")
 
     def create_booking_confirmation_template(self) -> str:
         """

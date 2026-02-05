@@ -3,7 +3,7 @@
 Router para envio e gerenciamento de emails.
 Suporta envio de templates, emails personalizados e busca via IMAP.
 """
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Request
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, Request, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timedelta
@@ -166,6 +166,7 @@ async def send_booking_confirmation(
     request: Request,
     booking_request: SendBookingConfirmationRequest,
     background_tasks: BackgroundTasks,
+    send_in_background: bool = Query(False, description="Enviar em background"),
     db: Session = Depends(get_db),
     email_service: EmailService = Depends(get_email_service),
     current_user: User = Depends(get_current_active_user)
@@ -217,12 +218,12 @@ async def send_booking_confirmation(
     # Preparar contexto do template
     context = {
         "guest_name": guest_name,
-        "check_in": booking.check_in.strftime("%d/%m/%Y"),
-        "check_out": booking.check_out.strftime("%d/%m/%Y"),
+        "check_in": booking.check_in_date.strftime("%d/%m/%Y"),
+        "check_out": booking.check_out_date.strftime("%d/%m/%Y"),
         "property_name": property_obj.name,
         "property_address": property_obj.address,
         "booking_id": booking.id,
-        "total_nights": (booking.check_out - booking.check_in).days
+        "total_nights": (booking.check_out_date - booking.check_in_date).days
     }
 
     # Função para enviar email
@@ -244,7 +245,7 @@ async def send_booking_confirmation(
             logger.error(f"Error sending confirmation email: {e}")
 
     # Enviar em background se solicitado
-    if request.send_in_background:
+    if send_in_background:
         background_tasks.add_task(send_confirmation)
         return EmailResponse(
             success=True,
@@ -264,6 +265,7 @@ async def send_checkin_reminder(
     request: Request,
     reminder_request: SendCheckinReminderRequest,
     background_tasks: BackgroundTasks,
+    send_in_background: bool = Query(False, description="Enviar em background"),
     db: Session = Depends(get_db),
     email_service: EmailService = Depends(get_email_service),
     current_user: User = Depends(get_current_active_user)
@@ -312,11 +314,16 @@ async def send_checkin_reminder(
         )
 
     # Preparar contexto
+    # FIX: Garantir que access_instructions nunca é None
+    access_instructions = getattr(property_obj, 'access_instructions', None)
+    if not access_instructions:
+        access_instructions = "Instruções de acesso serão fornecidas em breve."
+
     context = {
         "guest_name": guest_name,
-        "check_in": booking.check_in.strftime("%d/%m/%Y"),
+        "check_in": booking.check_in_date.strftime("%d/%m/%Y"),
         "property_address": property_obj.address,
-        "access_instructions": getattr(property_obj, 'access_instructions', None),
+        "access_instructions": access_instructions,
         "contact_phone": settings.CONTACT_PHONE,
         "contact_email": settings.CONTACT_EMAIL
     }
@@ -340,7 +347,7 @@ async def send_checkin_reminder(
             logger.error(f"Error sending reminder email: {e}")
 
     # Enviar em background se solicitado
-    if request.send_in_background:
+    if send_in_background:
         background_tasks.add_task(send_reminder)
         return EmailResponse(
             success=True,
@@ -359,6 +366,7 @@ async def send_checkin_reminder(
 async def send_bulk_checkin_reminders(
     request: Request,
     days_before: int = 1,
+    batch_size: int = Query(100, ge=1, le=500, description="Tamanho do batch (max 500)"),
     db: Session = Depends(get_db),
     email_service: EmailService = Depends(get_email_service),
     current_user: User = Depends(get_current_active_user)
@@ -378,17 +386,32 @@ async def send_bulk_checkin_reminders(
     # Calcular data alvo
     target_date = datetime.now().date() + timedelta(days=days_before)
 
-    # Buscar reservas com check-in na data alvo
-    bookings = db.query(Booking).filter(
-        Booking.check_in == target_date,
-        Booking.status == "confirmed"
-    ).all()
+    # FIX: Buscar reservas com paginação para evitar DoS
+    from app.models.booking import BookingStatus
+    from sqlalchemy.orm import joinedload
+
+    bookings = db.query(Booking).options(
+        joinedload(Booking.property_rel),
+        joinedload(Booking.guest)
+    ).filter(
+        Booking.check_in_date == target_date,
+        Booking.status == BookingStatus.CONFIRMED
+    ).limit(batch_size).all()  # FIX: Limitar quantidade
 
     if not bookings:
         return EmailResponse(
             success=True,
             message=f"Nenhuma reserva encontrada para check-in em {target_date.strftime('%d/%m/%Y')}"
         )
+
+    # FIX: Avisar se batch está limitado
+    total_count = db.query(Booking).filter(
+        Booking.check_in_date == target_date,
+        Booking.status == BookingStatus.CONFIRMED
+    ).count()
+
+    if total_count > batch_size:
+        logger.warning(f"Bulk reminders limited to {batch_size} bookings (total: {total_count})")
 
     # Enviar lembretes
     sent_count = 0
@@ -398,28 +421,32 @@ async def send_bulk_checkin_reminders(
 
         for booking in bookings:
             try:
-                # Buscar imóvel e hóspede
-                property_obj = db.query(Property).filter(Property.id == booking.property_id).first()
+                # Usar dados já carregados via joinedload (sem queries adicionais)
+                property_obj = booking.property_rel
 
                 guest_email = None
                 guest_name = booking.guest_name or "Hóspede"
 
-                if booking.guest_id:
-                    guest = db.query(Guest).filter(Guest.id == booking.guest_id).first()
-                    if guest and guest.email:
-                        guest_email = guest.email
-                        guest_name = guest.name
+                # Usar guest já carregado via joinedload
+                if booking.guest and booking.guest.email:
+                    guest_email = booking.guest.email
+                    guest_name = booking.guest.name
 
                 if not guest_email or not property_obj:
                     logger.warning(f"Skipping booking {booking.id}: missing email or property")
                     continue
 
                 # Preparar contexto
+                # FIX: Garantir que access_instructions nunca é None
+                access_instructions = getattr(property_obj, 'access_instructions', None)
+                if not access_instructions:
+                    access_instructions = "Instruções de acesso serão fornecidas em breve."
+
                 context = {
                     "guest_name": guest_name,
-                    "check_in": booking.check_in.strftime("%d/%m/%Y"),
+                    "check_in": booking.check_in_date.strftime("%d/%m/%Y"),
                     "property_address": property_obj.address,
-                    "access_instructions": getattr(property_obj, 'access_instructions', None),
+                    "access_instructions": access_instructions,
                     "contact_phone": settings.CONTACT_PHONE,
                     "contact_email": settings.CONTACT_EMAIL
                 }
