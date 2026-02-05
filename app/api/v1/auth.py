@@ -20,7 +20,7 @@ from app.schemas.auth import (
     ChangePasswordRequest,
     Token
 )
-from app.middleware.auth import get_current_user, get_current_active_user
+from app.middleware.auth import get_current_user, get_current_active_user, get_current_admin_user
 
 router = APIRouter(prefix="/auth", tags=["Autenticação"])
 limiter = Limiter(key_func=get_remote_address)
@@ -103,8 +103,51 @@ def login(
         (User.username == login_data.username) | (User.email == login_data.username)
     ).first()
 
-    # Verificar se usuário existe e senha correta
-    if not user or not verify_password(login_data.password, user.hashed_password):
+    # PROTEÇÃO CONTRA ACCOUNT LOCKOUT:
+    # Verificar se conta está bloqueada (antes da verificação de senha)
+    if user and user.locked_until:
+        if datetime.utcnow() < user.locked_until:
+            # Conta ainda está bloqueada
+            remaining = (user.locked_until - datetime.utcnow()).total_seconds() / 60
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Conta bloqueada temporariamente. Tente novamente em {int(remaining)} minutos."
+            )
+        else:
+            # Período de bloqueio expirou - resetar contadores
+            user.locked_until = None
+            user.failed_login_attempts = 0
+            db.commit()
+
+    # PROTEÇÃO CONTRA TIMING ATTACK:
+    # Sempre executa hash verification, mesmo se usuário não existir
+    # Isso garante tempo de resposta constante
+    dummy_hash = "$2b$12$dummyhashfordummyhashfordummyhashfordummyhashfordummyha"
+    password_hash = user.hashed_password if user else dummy_hash
+
+    # Verifica senha
+    password_valid = verify_password(login_data.password, password_hash)
+
+    # Verificar se usuário existe E senha correta
+    if not user or not password_valid:
+        # Incrementar contador de tentativas falhas
+        if user:
+            user.failed_login_attempts += 1
+
+            # Bloquear conta após 5 tentativas (15 minutos de bloqueio)
+            MAX_ATTEMPTS = 5
+            LOCKOUT_MINUTES = 15
+
+            if user.failed_login_attempts >= MAX_ATTEMPTS:
+                user.locked_until = datetime.utcnow() + timedelta(minutes=LOCKOUT_MINUTES)
+                db.commit()
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Muitas tentativas de login. Conta bloqueada por {LOCKOUT_MINUTES} minutos."
+                )
+
+            db.commit()
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Username/email ou senha incorretos",
@@ -118,18 +161,21 @@ def login(
             detail="Usuário inativo. Entre em contato com o administrador."
         )
 
+    # Login bem-sucedido - resetar contador de tentativas
+    user.failed_login_attempts = 0
+    user.locked_until = None
+
     # Atualizar last_login
     user.last_login_at = datetime.utcnow()
     db.commit()
 
-    # Criar token JWT
+    # Criar token JWT - APENAS ID DO USUÁRIO
+    # Dados sensíveis (email, username, is_admin) são buscados do banco via middleware
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={
-            "sub": str(user.id),
-            "email": user.email,
-            "username": user.username,
-            "is_admin": user.is_admin,
+            "sub": str(user.id),  # Apenas ID do usuário
+            "type": "access",     # Tipo do token
         },
         expires_delta=access_token_expires
     )
@@ -243,3 +289,42 @@ def delete_account(
     db.commit()
 
     return {"message": "Conta deletada com sucesso"}
+
+
+@router.post("/unlock-user/{user_id}", status_code=status.HTTP_200_OK)
+def unlock_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin_user)
+):
+    """
+    Desbloqueia usuário manualmente (APENAS ADMIN).
+
+    Args:
+        user_id: ID do usuário a ser desbloqueado
+        admin: Usuário administrador (automático via token)
+
+    Returns:
+        dict: Mensagem de sucesso
+
+    Raises:
+        HTTPException 404: Se usuário não encontrado
+    """
+    # Buscar usuário
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuário não encontrado"
+        )
+
+    # Desbloquear e resetar contadores
+    user.locked_until = None
+    user.failed_login_attempts = 0
+    db.commit()
+
+    return {
+        "message": f"Usuário {user.username} desbloqueado com sucesso",
+        "user_id": user.id,
+        "username": user.username
+    }
