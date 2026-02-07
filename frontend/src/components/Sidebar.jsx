@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
   Home,
   Calendar,
@@ -6,17 +5,23 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  BarChart3
+  BarChart3,
+  FileText,
+  Mail,
+  Bell
 } from 'lucide-react';
 import './Sidebar.css';
 
 const Sidebar = ({ currentPage, onPageChange, collapsed, onToggleCollapse }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
-    { id: 'calendar', label: 'Calendário', icon: Calendar },
+    { id: 'calendar', label: 'Calendario', icon: Calendar },
     { id: 'conflicts', label: 'Conflitos', icon: AlertTriangle },
-    { id: 'statistics', label: 'Estatísticas', icon: BarChart3 },
-    { id: 'settings', label: 'Configurações', icon: Settings },
+    { id: 'statistics', label: 'Estatisticas', icon: BarChart3 },
+    { id: 'documents', label: 'Documentos', icon: FileText },
+    { id: 'emails', label: 'Emails', icon: Mail },
+    { id: 'notifications', label: 'Notificacoes', icon: Bell },
+    { id: 'settings', label: 'Configuracoes', icon: Settings },
   ];
 
   return (
@@ -54,7 +59,7 @@ const Sidebar = ({ currentPage, onPageChange, collapsed, onToggleCollapse }) => 
       <div className="sidebar-footer">
         {!collapsed && (
           <div className="sidebar-info">
-            <p className="version">v1.0.0 - MVP1</p>
+            <p className="version">v2.2.0 - MVP2</p>
             <p className="status">
               <span className="status-dot"></span>
               Sistema Online

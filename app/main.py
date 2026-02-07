@@ -14,6 +14,8 @@ from slowapi.errors import RateLimitExceeded
 from app.config import settings
 from app.utils.logger import setup_logger, get_logger
 from app.routers import bookings, conflicts, statistics, sync_actions, calendar, documents, emails
+from app.routers import settings as settings_router_mod
+from app.routers import notifications as notifications_router_mod
 from app.api.v1 import auth, health
 from app.middleware.security_headers import add_security_headers
 from app.middleware.csrf import CSRFProtectionMiddleware
@@ -191,6 +193,8 @@ app.include_router(conflicts.router)
 app.include_router(statistics.router)
 app.include_router(sync_actions.router)
 app.include_router(calendar.router)
+app.include_router(settings_router_mod.router)  # Configurações persistentes
+app.include_router(notifications_router_mod.router)  # Central de notificações
 
 
 # Rotas básicas
@@ -220,6 +224,18 @@ def api_info():
     return {
         "app_name": settings.APP_NAME,
         "property_name": settings.PROPERTY_NAME,
+        "property_address": settings.PROPERTY_ADDRESS,
+        "condo_name": settings.CONDO_NAME,
+        "condo_admin_name": settings.CONDO_ADMIN_NAME,
+        "owner_name": settings.OWNER_NAME,
+        "owner_email": settings.OWNER_EMAIL,
+        "owner_phone": settings.OWNER_PHONE,
+        "owner_apto": settings.OWNER_APTO,
+        "owner_bloco": settings.OWNER_BLOCO,
+        "owner_garagem": settings.OWNER_GARAGEM,
+        "condo_email": settings.CONDO_EMAIL,
+        "contact_phone": settings.CONTACT_PHONE,
+        "contact_email": settings.CONTACT_EMAIL,
         "timezone": settings.TIMEZONE,
         "sync_interval_minutes": settings.CALENDAR_SYNC_INTERVAL_MINUTES,
         "features": {

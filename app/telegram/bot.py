@@ -18,9 +18,16 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
+from app.database.session import get_db_context
 from app.models import Booking, BookingConflict, Property
 from app.core.calendar_sync import CalendarSync
 from app.core.conflict_detector import ConflictDetector
+from app.services.document_service import DocumentService
+from app.services.email_service import get_email_service
+from app.services.notification_db_service import NotificationDBService
+from app.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class TelegramBot:
@@ -403,6 +410,19 @@ class TelegramBot:
         query = update.callback_query
         await query.answer()
 
+        data = query.data
+
+        # Roteamento por prefixo para botoes de aprovacao/rejeicao
+        if data.startswith("approve_booking_"):
+            booking_id = int(data.replace("approve_booking_", ""))
+            await self._handle_approve_booking(query, booking_id)
+            return
+
+        if data.startswith("ignore_booking_"):
+            booking_id = int(data.replace("ignore_booking_", ""))
+            await self._handle_ignore_booking(query, booking_id)
+            return
+
         # Mapear callbacks para comandos
         callback_map = {
             "status": self._cmd_status,
@@ -414,11 +434,190 @@ class TelegramBot:
             "menu": self._cmd_menu,
         }
 
-        handler = callback_map.get(query.data)
+        handler = callback_map.get(data)
         if handler:
             # Criar update fake para reusar handlers
             update.message = query.message
             await handler(update, context)
+
+    async def _handle_approve_booking(self, query, booking_id: int):
+        """Processa aprovacao de reserva: gera documento e envia email ao condominio"""
+        try:
+            with get_db_context() as db:
+                # Buscar reserva
+                booking = db.query(Booking).filter(Booking.id == booking_id).first()
+
+                if not booking:
+                    await query.edit_message_text(
+                        f"❌ Reserva #{booking_id} não encontrada."
+                    )
+                    return
+
+                await query.edit_message_text(
+                    f"⏳ Gerando documento de autorização para {booking.guest_name}..."
+                )
+
+                # Gerar documento
+                doc_service = DocumentService()
+                booking_data = {
+                    "id": booking.id,
+                    "check_in": booking.check_in_date,
+                    "check_out": booking.check_out_date,
+                }
+                property_data = {
+                    "name": settings.PROPERTY_NAME,
+                    "address": settings.PROPERTY_ADDRESS,
+                    "condo_name": settings.CONDO_NAME,
+                    "owner_name": settings.OWNER_NAME,
+                }
+                guest_data = {
+                    "name": booking.guest_name or "Hóspede",
+                    "cpf": "",
+                    "phone": "",
+                    "email": "",
+                }
+
+                result = doc_service.generate_condo_authorization(
+                    booking_data=booking_data,
+                    property_data=property_data,
+                    guest_data=guest_data,
+                    save_to_file=True
+                )
+
+                if not result["success"]:
+                    await query.edit_message_text(
+                        f"❌ Erro ao gerar documento: {result['message']}"
+                    )
+                    return
+
+                filename = result.get("filename", "")
+                file_path = result.get("file_path", "")
+
+                # Verificar se condo_email esta configurado
+                if not settings.CONDO_EMAIL:
+                    await query.edit_message_text(
+                        f"✅ Documento gerado: {filename}\n\n"
+                        f"⚠️ Email do condomínio não configurado.\n"
+                        f"Configure CONDO_EMAIL no .env para envio automático.\n"
+                        f"O documento está salvo em: {file_path}"
+                    )
+                    return
+
+                # Verificar se email esta configurado
+                email_service = get_email_service(
+                    provider=settings.EMAIL_PROVIDER,
+                    username=settings.EMAIL_FROM,
+                    password=settings.EMAIL_PASSWORD
+                )
+
+                if not email_service:
+                    await query.edit_message_text(
+                        f"✅ Documento gerado: {filename}\n\n"
+                        f"⚠️ Serviço de email não configurado.\n"
+                        f"Configure EMAIL_FROM e EMAIL_PASSWORD no .env.\n"
+                        f"O documento está salvo em: {file_path}"
+                    )
+                    return
+
+                # Ler arquivo para anexo
+                from pathlib import Path
+                doc_path = Path(file_path)
+                if not doc_path.exists():
+                    await query.edit_message_text(
+                        f"✅ Documento gerado mas arquivo não encontrado para envio.\n"
+                        f"Caminho: {file_path}"
+                    )
+                    return
+
+                file_bytes = doc_path.read_bytes()
+
+                # Enviar email ao condominio
+                check_in_str = booking.check_in_date.strftime('%d/%m/%Y')
+                check_out_str = booking.check_out_date.strftime('%d/%m/%Y')
+
+                email_result = await email_service.send_email(
+                    to=[settings.CONDO_EMAIL],
+                    subject=f"Autorização de Hospedagem - {booking.guest_name} - {check_in_str} a {check_out_str}",
+                    body=(
+                        f"Prezada Administração,\n\n"
+                        f"Segue em anexo a autorização de hospedagem para:\n\n"
+                        f"Hóspede: {booking.guest_name}\n"
+                        f"Check-in: {check_in_str}\n"
+                        f"Check-out: {check_out_str}\n"
+                        f"Imóvel: {settings.PROPERTY_NAME}\n\n"
+                        f"Atenciosamente,\n"
+                        f"{settings.OWNER_NAME}\n"
+                        f"Tel: {settings.OWNER_PHONE}"
+                    ),
+                    attachments=[{
+                        "filename": filename,
+                        "content": file_bytes
+                    }]
+                )
+
+                if email_result.get("success"):
+                    await query.edit_message_text(
+                        f"✅ **Autorização Enviada!**\n\n"
+                        f"👤 Hóspede: {booking.guest_name}\n"
+                        f"📆 {check_in_str} → {check_out_str}\n"
+                        f"📄 Documento: {filename}\n"
+                        f"📧 Enviado para: {settings.CONDO_EMAIL}\n\n"
+                        f"O condomínio receberá a autorização em breve.",
+                        parse_mode="Markdown"
+                    )
+                    logger.info(f"Authorization sent for booking {booking_id} to {settings.CONDO_EMAIL}")
+
+                    # Notificações no banco de dados
+                    notif_db = NotificationDBService(db)
+                    notif_db.create(
+                        type="document",
+                        title=f"Documento gerado: {booking.guest_name}",
+                        message=f"Autorização de hospedagem gerada: {filename}",
+                        booking_id=booking_id,
+                    )
+                    notif_db.create(
+                        type="email",
+                        title=f"Email enviado ao condomínio",
+                        message=f"Autorização de {booking.guest_name} enviada para {settings.CONDO_EMAIL}",
+                        booking_id=booking_id,
+                    )
+                else:
+                    error_msg = email_result.get("message", "Erro desconhecido")
+                    await query.edit_message_text(
+                        f"✅ Documento gerado: {filename}\n\n"
+                        f"❌ Erro ao enviar email: {error_msg}\n"
+                        f"O documento está salvo em: {file_path}"
+                    )
+                    logger.error(f"Failed to send email for booking {booking_id}: {error_msg}")
+
+                    # Notificação de documento gerado (sem email)
+                    notif_db = NotificationDBService(db)
+                    notif_db.create(
+                        type="document",
+                        title=f"Documento gerado: {booking.guest_name}",
+                        message=f"Autorização gerada ({filename}) mas erro ao enviar email: {error_msg}",
+                        booking_id=booking_id,
+                    )
+
+        except Exception as e:
+            logger.error(f"Error approving booking {booking_id}: {e}", exc_info=True)
+            try:
+                await query.edit_message_text(
+                    f"❌ Erro ao processar autorização: {str(e)}"
+                )
+            except Exception:
+                pass
+
+    async def _handle_ignore_booking(self, query, booking_id: int):
+        """Processa rejeicao de reserva"""
+        try:
+            await query.edit_message_text(
+                f"⏭️ Reserva #{booking_id} ignorada.\n"
+                f"Nenhum documento será gerado para esta reserva."
+            )
+            logger.info(f"Booking {booking_id} ignored by admin")
+        except Exception as e:
+            logger.error(f"Error ignoring booking {booking_id}: {e}")
 
     async def _handle_message(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE

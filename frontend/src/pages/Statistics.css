@@ -165,49 +165,6 @@
   color: var(--text-secondary);
 }
 
-.empty-state {
-  text-align: center;
-  padding: 80px 20px;
-  color: var(--text-secondary);
-  background: var(--bg-primary);
-  border-radius: 12px;
-  border: 1px solid var(--border);
-}
-
-.empty-state svg {
-  margin-bottom: 16px;
-  opacity: 0.5;
-}
-
-.empty-state h3 {
-  font-size: 20px;
-  margin-bottom: 8px;
-  color: var(--text-primary);
-}
-
-.empty-state p {
-  font-size: 14px;
-}
-
-.loading-state {
-  text-align: center;
-  padding: 80px 20px;
-  color: var(--text-secondary);
-}
-
-.spin {
-  animation: spin 1s linear infinite;
-  margin-bottom: 16px;
-}
-
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
 
 /* Responsividade */
 @media (max-width: 1200px) {

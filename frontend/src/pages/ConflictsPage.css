@@ -226,28 +226,8 @@
   justify-content: flex-end;
 }
 
-.empty-state {
-  text-align: center;
-  padding: 80px 20px;
-  background: var(--bg-primary);
-  border-radius: 12px;
-  border: 1px solid var(--border);
-}
-
 .empty-state .success-icon {
   color: var(--success);
-  margin-bottom: 16px;
-}
-
-.empty-state h3 {
-  font-size: 20px;
-  margin-bottom: 8px;
-  color: var(--text-primary);
-}
-
-.empty-state p {
-  color: var(--text-secondary);
-  margin-bottom: 20px;
 }
 
 .conflict-details {
@@ -330,11 +310,6 @@
   margin-left: 4px;
 }
 
-.loading-state {
-  text-align: center;
-  padding: 80px 20px;
-  color: var(--text-secondary);
-}
 
 @media (max-width: 768px) {
   .conflicts-summary {

@@ -4,7 +4,7 @@ Envia alertas sobre conflitos, check-ins, check-outs e eventos importantes.
 """
 from datetime import datetime, timedelta
 from typing import List, Optional
-from telegram import Bot
+from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError
 
 from app.config import settings
@@ -39,8 +39,30 @@ class NotificationService:
 
         return success
 
+    async def send_to_admins_with_keyboard(
+        self, message: str, reply_markup: InlineKeyboardMarkup, parse_mode: str = "Markdown"
+    ) -> bool:
+        """Envia mensagem com botoes inline para todos os admins"""
+        if not self.bot or not self.admin_ids:
+            return False
+
+        success = True
+        for admin_id in self.admin_ids:
+            try:
+                await self.bot.send_message(
+                    chat_id=admin_id,
+                    text=message,
+                    parse_mode=parse_mode,
+                    reply_markup=reply_markup
+                )
+            except TelegramError as e:
+                print(f"❌ Erro ao enviar mensagem para {admin_id}: {e}")
+                success = False
+
+        return success
+
     async def notify_new_booking(self, booking: Booking) -> bool:
-        """Notifica sobre nova reserva"""
+        """Notifica sobre nova reserva com botoes de aprovacao"""
         platform_emoji = self._get_platform_emoji(booking.platform)
 
         message = (
@@ -55,6 +77,23 @@ class NotificationService:
 
         if booking.total_price:
             message += f"💰 Valor: R$ {booking.total_price:.2f}\n"
+
+        # Se tem booking.id, adicionar botoes de aprovacao
+        if booking.id:
+            message += "\n📝 Deseja autorizar hospedagem no condomínio?"
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton(
+                        "✅ Autorizar",
+                        callback_data=f"approve_booking_{booking.id}"
+                    ),
+                    InlineKeyboardButton(
+                        "❌ Ignorar",
+                        callback_data=f"ignore_booking_{booking.id}"
+                    ),
+                ]
+            ])
+            return await self.send_to_admins_with_keyboard(message, keyboard)
 
         return await self.send_to_admins(message)
 

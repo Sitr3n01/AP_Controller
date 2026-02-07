@@ -30,6 +30,13 @@ token.json
 *.key
 *.pem
 
+# === TEMPLATES (documentos reais do condomínio) ===
+templates/*.docx
+templates/*.pdf
+
+# === WINDOWS ARTIFACTS ===
+nul
+
 # === BANCO DE DADOS ===
 data/sentinel.db
 data/sentinel.db-*

@@ -75,6 +75,8 @@ def create_all_tables():
         booking_conflict,
         sync_action,
     )
+    from app.models.app_settings import AppSetting
+    from app.models.notification import Notification
 
     logger.info("Creating all database tables...")
     Base.metadata.create_all(bind=engine)

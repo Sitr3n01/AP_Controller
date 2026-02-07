@@ -1,13 +1,13 @@
 # app/services/document_service.py
 """
 Serviço de geração automática de documentos.
-Suporta templates DOCX para autorização de condomínio e outros documentos.
+Usa python-docx para preencher diretamente as tabelas do template do condomínio.
 """
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any, Optional
-from docxtpl import DocxTemplate
+from typing import Dict, Any, Optional, List
 from docx import Document
+import shutil
 import io
 
 from app.config import settings
@@ -18,13 +18,14 @@ logger = get_logger(__name__)
 
 class DocumentService:
     """
-    Serviço para geração de documentos a partir de templates.
+    Serviço para geração de documentos a partir do template do condomínio.
 
-    Suporta:
-    - Templates DOCX com placeholders
-    - Geração automática de autorizações
-    - Substituição de variáveis
-    - Salvar em arquivo ou retornar bytes
+    O template possui 3 tabelas:
+    - Table 0: Dados do proprietário (FIXOS, já preenchidos no template)
+    - Table 1: Dados do hóspede (5 rows x 6 cols)
+    - Table 2: Acompanhantes (7 rows x 3 cols)
+
+    E um parágrafo com Veículo/Modelo e Placa.
     """
 
     def __init__(self):
@@ -36,6 +37,39 @@ class DocumentService:
         self.template_dir.mkdir(parents=True, exist_ok=True)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
+    def _find_template(self) -> Optional[Path]:
+        """
+        Encontra o template do condomínio no diretório de templates.
+        Procura pelo DEFAULT_TEMPLATE ou qualquer .docx no diretório.
+        """
+        # Tentar o template padrão configurado
+        default_path = self.template_dir / settings.DEFAULT_TEMPLATE
+        if default_path.exists():
+            return default_path
+
+        # Procurar qualquer .docx no diretório de templates
+        docx_files = list(self.template_dir.glob("*.docx"))
+        if docx_files:
+            logger.info(f"Using template: {docx_files[0].name}")
+            return docx_files[0]
+
+        return None
+
+    def _set_cell_text(self, table, row_idx: int, col_idx: int, text: str):
+        """Define o texto de uma célula mantendo a formatação existente."""
+        cell = table.rows[row_idx].cells[col_idx]
+        # Limpar o conteúdo existente
+        for paragraph in cell.paragraphs:
+            for run in paragraph.runs:
+                run.text = ""
+        # Definir o novo texto no primeiro run ou criar um
+        if cell.paragraphs and cell.paragraphs[0].runs:
+            cell.paragraphs[0].runs[0].text = text
+        elif cell.paragraphs:
+            cell.paragraphs[0].text = text
+        else:
+            cell.text = text
+
     def generate_condo_authorization(
         self,
         booking_data: Dict[str, Any],
@@ -44,47 +78,93 @@ class DocumentService:
         save_to_file: bool = True
     ) -> Dict[str, Any]:
         """
-        Gera autorização de condomínio para um hóspede.
+        Gera autorização de condomínio preenchendo o template real.
 
-        Args:
-            booking_data: Dados da reserva (check_in, check_out, etc)
-            property_data: Dados do imóvel (nome, endereço, etc)
-            guest_data: Dados do hóspede (nome, CPF, etc)
-            save_to_file: Se True, salva em arquivo. Se False, retorna bytes.
-
-        Returns:
-            Dict com:
-                - success: bool
-                - file_path: str (se save_to_file=True)
-                - file_bytes: bytes (se save_to_file=False)
-                - message: str
-
-        Example:
-            >>> doc_service = DocumentService()
-            >>> result = doc_service.generate_condo_authorization(
-            ...     booking_data={'check_in': '2024-01-15', 'check_out': '2024-01-20'},
-            ...     property_data={'name': 'Apt 101', 'address': 'Rua X'},
-            ...     guest_data={'name': 'João Silva', 'cpf': '123.456.789-00'}
-            ... )
+        Preenche:
+        - Table 1 (hóspede): nome, CPF, endereço, telefone, bairro, celular,
+          cidade, estado, entrada, saída, CEP
+        - Table 2 (acompanhantes): nome e documento de cada acompanhante
+        - Parágrafo de veículo/placa
         """
         try:
-            template_path = self.template_dir / settings.DEFAULT_TEMPLATE
+            template_path = self._find_template()
 
-            # Verificar se template existe
-            if not template_path.exists():
-                logger.warning(f"Template not found: {template_path}, creating default")
+            if not template_path:
+                logger.warning("No template found, creating default")
+                template_path = self.template_dir / settings.DEFAULT_TEMPLATE
                 self._create_default_template(template_path)
 
-            # Carregar template
-            doc = DocxTemplate(template_path)
+            # Copiar template para não modificar o original
+            doc = Document(str(template_path))
 
-            # Preparar contexto com dados
-            context = self._prepare_condo_authorization_context(
-                booking_data, property_data, guest_data
-            )
+            # Formatar datas
+            check_in = booking_data.get('check_in')
+            check_out = booking_data.get('check_out')
 
-            # Renderizar template
-            doc.render(context)
+            if isinstance(check_in, str):
+                check_in_formatted = datetime.fromisoformat(check_in).strftime('%d/%m/%Y')
+            else:
+                check_in_formatted = check_in.strftime('%d/%m/%Y') if check_in else ''
+
+            if isinstance(check_out, str):
+                check_out_formatted = datetime.fromisoformat(check_out).strftime('%d/%m/%Y')
+            else:
+                check_out_formatted = check_out.strftime('%d/%m/%Y') if check_out else ''
+
+            # Verificar se o documento tem tabelas suficientes
+            if len(doc.tables) >= 2:
+                # ========== TABLE 1: Dados do Hóspede ==========
+                guest_table = doc.tables[1]
+
+                # Row 0: Hóspede / CPF
+                self._set_cell_text(guest_table, 0, 1, guest_data.get('name', ''))
+                self._set_cell_text(guest_table, 0, 5, guest_data.get('cpf', guest_data.get('document_number', '')))
+
+                # Row 1: Endereço / Telefone
+                self._set_cell_text(guest_table, 1, 1, guest_data.get('address', ''))
+                self._set_cell_text(guest_table, 1, 5, guest_data.get('phone', ''))
+
+                # Row 2: Bairro / Celular
+                self._set_cell_text(guest_table, 2, 1, guest_data.get('bairro', ''))
+                self._set_cell_text(guest_table, 2, 5, guest_data.get('celular', guest_data.get('phone', '')))
+
+                # Row 3: Cidade / Estado
+                self._set_cell_text(guest_table, 3, 1, guest_data.get('cidade', ''))
+                self._set_cell_text(guest_table, 3, 5, guest_data.get('estado', ''))
+
+                # Row 4: Entrada / Saída / CEP
+                self._set_cell_text(guest_table, 4, 1, check_in_formatted)
+                self._set_cell_text(guest_table, 4, 3, check_out_formatted)
+                self._set_cell_text(guest_table, 4, 5, guest_data.get('cep', ''))
+
+            # ========== TABLE 2: Acompanhantes ==========
+            companions = guest_data.get('companions', []) or []
+            if len(doc.tables) >= 3 and companions:
+                comp_table = doc.tables[2]
+                for i, companion in enumerate(companions[:5]):  # Máximo 5 acompanhantes
+                    if i < len(comp_table.rows):
+                        name = companion.get('name', '') if isinstance(companion, dict) else str(companion)
+                        doc_num = companion.get('document', '') if isinstance(companion, dict) else ''
+                        self._set_cell_text(comp_table, i, 1, name)
+                        self._set_cell_text(comp_table, i, 2, doc_num)
+
+            # ========== VEÍCULO/PLACA (Parágrafo) ==========
+            vehicle = guest_data.get('vehicle', '')
+            plate = guest_data.get('plate', '')
+            if vehicle or plate:
+                for para in doc.paragraphs:
+                    if 'culo/Modelo' in para.text or 'Veículo' in para.text or 'culo' in para.text:
+                        vehicle_text = f"Veículo/Modelo: {vehicle}"
+                        plate_text = f"Placa: {plate}"
+                        para.text = f"{vehicle_text}    {plate_text}"
+                        break
+
+            # ========== DATA (Parágrafo com Brasília/DF) ==========
+            date_today = datetime.now().strftime('%d/%m/%Y')
+            for para in doc.paragraphs:
+                if 'lia/DF' in para.text or 'Brasília' in para.text or 'Bras' in para.text:
+                    para.text = f"Brasília/DF, {date_today}"
+                    break
 
             # Salvar ou retornar bytes
             if save_to_file:
@@ -101,7 +181,6 @@ class DocumentService:
                     "message": "Documento gerado com sucesso"
                 }
             else:
-                # Retornar bytes
                 doc_bytes = io.BytesIO()
                 doc.save(doc_bytes)
                 doc_bytes.seek(0)
@@ -120,136 +199,43 @@ class DocumentService:
                 "message": f"Erro ao gerar documento: {str(e)}"
             }
 
-    def _prepare_condo_authorization_context(
-        self,
-        booking_data: Dict[str, Any],
-        property_data: Dict[str, Any],
-        guest_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """
-        Prepara o contexto com todas as variáveis para o template.
-
-        Variáveis disponíveis no template:
-        - {{ guest_name }} - Nome do hóspede
-        - {{ guest_cpf }} - CPF do hóspede
-        - {{ guest_phone }} - Telefone do hóspede
-        - {{ check_in }} - Data de check-in
-        - {{ check_out }} - Data de check-out
-        - {{ property_name }} - Nome do imóvel
-        - {{ property_address }} - Endereço completo
-        - {{ condo_name }} - Nome do condomínio
-        - {{ date_today }} - Data de hoje
-        - {{ owner_name }} - Nome do proprietário
-        """
-        # Formatar datas
-        check_in = booking_data.get('check_in')
-        check_out = booking_data.get('check_out')
-
-        if isinstance(check_in, str):
-            check_in_formatted = datetime.fromisoformat(check_in).strftime('%d/%m/%Y')
-        else:
-            check_in_formatted = check_in.strftime('%d/%m/%Y') if check_in else ''
-
-        if isinstance(check_out, str):
-            check_out_formatted = datetime.fromisoformat(check_out).strftime('%d/%m/%Y')
-        else:
-            check_out_formatted = check_out.strftime('%d/%m/%Y') if check_out else ''
-
-        context = {
-            # Hóspede
-            'guest_name': guest_data.get('name', ''),
-            'guest_cpf': guest_data.get('cpf', guest_data.get('document_number', '')),
-            'guest_phone': guest_data.get('phone', ''),
-            'guest_email': guest_data.get('email', ''),
-
-            # Reserva
-            'check_in': check_in_formatted,
-            'check_out': check_out_formatted,
-            'booking_id': booking_data.get('id', ''),
-
-            # Imóvel
-            'property_name': property_data.get('name', settings.PROPERTY_NAME),
-            'property_address': property_data.get('address', settings.PROPERTY_ADDRESS),
-            'condo_name': property_data.get('condo_name', settings.CONDO_NAME),
-
-            # Outros
-            'date_today': datetime.now().strftime('%d/%m/%Y'),
-            'owner_name': property_data.get('owner_name', ''),
-            'condo_admin': settings.CONDO_ADMIN_NAME,
-        }
-
-        return context
-
     def _generate_filename(self, guest_name: str) -> str:
         """
         Gera nome de arquivo único para o documento.
-
         Formato: autorizacao_NOME_DDMMYYYY_HHMMSS.docx
         """
-        # Limpar nome do hóspede (remover caracteres especiais)
         clean_name = "".join(c for c in guest_name if c.isalnum() or c.isspace())
-        clean_name = clean_name.replace(' ', '_')[:30]  # Limitar tamanho
-
+        clean_name = clean_name.replace(' ', '_')[:30]
         timestamp = datetime.now().strftime('%d%m%Y_%H%M%S')
-        filename = f"autorizacao_{clean_name}_{timestamp}.docx"
-
-        return filename
+        return f"autorizacao_{clean_name}_{timestamp}.docx"
 
     def _create_default_template(self, template_path: Path):
         """
-        Cria um template padrão de autorização de condomínio.
-
-        Este template serve como exemplo e deve ser customizado conforme necessário.
+        Cria um template padrão simples caso nenhum seja encontrado.
         """
         doc = Document()
+        doc.add_heading('AUTORIZAÇÃO DE HOSPEDAGEM', 0)
+        doc.add_paragraph('Template padrão - substitua pelo template real do condomínio.')
 
-        # Título
-        doc.add_heading('AUTORIZAÇÃO DE ACESSO AO CONDOMÍNIO', 0)
+        # Criar tabela de hóspede (5x6)
+        table = doc.add_table(rows=5, cols=6)
+        table.style = 'Table Grid'
+        labels = [
+            ['Hóspede:', '', '', '', 'CPF:', ''],
+            ['Endereço:', '', '', '', 'Telefone:', ''],
+            ['Bairro:', '', '', '', 'Celular:', ''],
+            ['Cidade:', '', '', '', 'Estado:', ''],
+            ['Entrada:', '', 'Saída:', '', 'CEP:', ''],
+        ]
+        for ri, row_data in enumerate(labels):
+            for ci, text in enumerate(row_data):
+                table.rows[ri].cells[ci].text = text
 
-        # Corpo
-        doc.add_paragraph(f"\n{settings.CONDO_ADMIN_NAME}")
-        doc.add_paragraph(f"{settings.CONDO_NAME}")
-        doc.add_paragraph("\nRef.: Autorização de Acesso para Hóspede")
-
-        doc.add_paragraph("\nPrezados,")
-
-        doc.add_paragraph(
-            "\nVenho por meio desta autorizar o acesso do(a) Sr(a). {{{{ guest_name }}}}, "
-            "portador(a) do CPF {{{{ guest_cpf }}}}, ao apartamento situado no endereço "
-            "{{{{ property_address }}}}."
-        )
-
-        doc.add_paragraph(
-            "\nO período autorizado para permanência é de {{{{ check_in }}}} até {{{{ check_out }}}}."
-        )
-
-        doc.add_paragraph("\nDados do Hóspede:")
-        doc.add_paragraph("• Nome: {{{{ guest_name }}}}")
-        doc.add_paragraph("• CPF: {{{{ guest_cpf }}}}")
-        doc.add_paragraph("• Telefone: {{{{ guest_phone }}}}")
-
-        doc.add_paragraph("\nAtenciosamente,")
-        doc.add_paragraph("\n\n_________________________________")
-        doc.add_paragraph("{{{{ owner_name }}}}")
-        doc.add_paragraph("Proprietário(a)")
-
-        doc.add_paragraph(f"\n{settings.PROPERTY_ADDRESS}")
-        doc.add_paragraph(f"Data: {{{{ date_today }}}}")
-
-        # Salvar template
         doc.save(str(template_path))
         logger.info(f"Default template created: {template_path}")
 
     def list_generated_documents(self, limit: int = 50) -> list[Dict[str, Any]]:
-        """
-        Lista os documentos gerados mais recentes.
-
-        Args:
-            limit: Número máximo de documentos a retornar
-
-        Returns:
-            Lista de dicts com informações dos documentos
-        """
+        """Lista os documentos gerados mais recentes."""
         documents = []
 
         for file_path in sorted(
@@ -268,28 +254,12 @@ class DocumentService:
         return documents
 
     def get_document_path(self, filename: str) -> Optional[Path]:
-        """
-        Retorna o caminho completo de um documento gerado.
-
-        Args:
-            filename: Nome do arquivo
-
-        Returns:
-            Path do arquivo se existir, None caso contrário
-        """
+        """Retorna o caminho completo de um documento gerado."""
         file_path = self.output_dir / filename
         return file_path if file_path.exists() else None
 
     def delete_document(self, filename: str) -> bool:
-        """
-        Deleta um documento gerado.
-
-        Args:
-            filename: Nome do arquivo a deletar
-
-        Returns:
-            True se deletado com sucesso, False caso contrário
-        """
+        """Deleta um documento gerado."""
         try:
             file_path = self.output_dir / filename
             if file_path.exists():

@@ -17,6 +17,7 @@ from app.services.document_service import DocumentService
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
+from app.config import settings
 from app.schemas.document import (
     GenerateDocumentRequest,
     GenerateDocumentFromBookingRequest,
@@ -122,7 +123,8 @@ def generate_document_from_booking(
                 "name": guest.name,
                 "cpf": guest.document_number,
                 "phone": guest.phone,
-                "email": guest.email
+                "email": guest.email,
+                "celular": guest.phone,
             }
 
     # Se não tem hóspede cadastrado, usar guest_name da reserva
@@ -131,7 +133,7 @@ def generate_document_from_booking(
             "name": booking.guest_name or "Hóspede",
             "cpf": "",
             "phone": "",
-            "email": ""
+            "email": "",
         }
 
     # Preparar dados
@@ -145,7 +147,7 @@ def generate_document_from_booking(
         "name": property_obj.name,
         "address": property_obj.address,
         "condo_name": getattr(property_obj, 'condo_name', None),
-        "owner_name": ""  # Pode adicionar campo owner no modelo Property
+        "owner_name": settings.OWNER_NAME,
     }
 
     # Gerar documento

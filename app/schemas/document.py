@@ -7,12 +7,27 @@ from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 
 
+class CompanionData(BaseModel):
+    """Dados de um acompanhante"""
+    name: str = Field(..., min_length=2, max_length=200, description="Nome do acompanhante")
+    document: Optional[str] = Field(None, description="RG ou CPF do acompanhante")
+
+
 class GuestDocumentData(BaseModel):
     """Dados do hóspede para geração de documento"""
     name: str = Field(..., min_length=3, max_length=200, description="Nome completo do hóspede")
     cpf: Optional[str] = Field(None, description="CPF ou documento do hóspede")
     phone: Optional[str] = Field(None, description="Telefone do hóspede")
+    celular: Optional[str] = Field(None, description="Celular do hóspede")
     email: Optional[str] = Field(None, description="Email do hóspede")
+    address: Optional[str] = Field(None, description="Endereço do hóspede")
+    bairro: Optional[str] = Field(None, description="Bairro do hóspede")
+    cidade: Optional[str] = Field(None, description="Cidade do hóspede")
+    estado: Optional[str] = Field(None, description="Estado do hóspede")
+    cep: Optional[str] = Field(None, description="CEP do hóspede")
+    vehicle: Optional[str] = Field(None, description="Veículo/Modelo do hóspede")
+    plate: Optional[str] = Field(None, description="Placa do veículo")
+    companions: Optional[list[CompanionData]] = Field(default=None, description="Lista de acompanhantes")
 
 
 class PropertyDocumentData(BaseModel):

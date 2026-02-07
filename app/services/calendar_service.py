@@ -14,6 +14,8 @@ from app.core.conflict_detector import ConflictDetector
 from app.services.booking_service import BookingService
 from app.services.sync_action_service import SyncActionService
 from app.models.sync_action import TargetPlatform
+from app.telegram.notifications import NotificationService
+from app.services.notification_db_service import NotificationDBService
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -114,6 +116,8 @@ class CalendarService:
                 "unchanged": 0
             }
 
+            new_bookings = []
+
             for event_data in events:
                 booking, action = self.booking_service.merge_booking_from_ical(
                     event_data=event_data,
@@ -123,6 +127,7 @@ class CalendarService:
 
                 if action == "created":
                     stats["added"] += 1
+                    new_bookings.append(booking)
                     logger.info(f"  🆕 Added: {booking.guest_name} ({booking.check_in_date})")
                 elif action == "updated":
                     stats["updated"] += 1
@@ -132,6 +137,40 @@ class CalendarService:
                     logger.info(f"  🚫 Cancelled: {booking.guest_name} ({booking.check_in_date})")
                 else:
                     stats["unchanged"] += 1
+
+            # Notificar novas reservas via Telegram (com botoes de aprovacao)
+            if new_bookings:
+                try:
+                    notification_service = NotificationService()
+                    for booking in new_bookings:
+                        await notification_service.notify_new_booking(booking)
+                    logger.info(f"  📱 Notified {len(new_bookings)} new booking(s) via Telegram")
+                except Exception as e:
+                    logger.error(f"  ❌ Error sending Telegram notifications: {e}")
+
+            # Salvar notificações no banco de dados
+            try:
+                notif_db = NotificationDBService(self.db)
+                for booking in new_bookings:
+                    notif_db.create(
+                        type="new_booking",
+                        title=f"Nova reserva: {booking.guest_name}",
+                        message=(
+                            f"Plataforma: {booking.platform.upper()}\n"
+                            f"Check-in: {booking.check_in_date.strftime('%d/%m/%Y')}\n"
+                            f"Check-out: {booking.check_out_date.strftime('%d/%m/%Y')}\n"
+                            f"Hóspedes: {booking.guest_count}"
+                        ),
+                        booking_id=booking.id,
+                    )
+                if stats["cancelled"] > 0:
+                    notif_db.create(
+                        type="booking_cancel",
+                        title=f"{stats['cancelled']} reserva(s) cancelada(s)",
+                        message=f"Detectado durante sincronização de {calendar_source.platform.value}",
+                    )
+            except Exception as e:
+                logger.error(f"  ❌ Error creating DB notifications: {e}")
 
             # Marcar reservas passadas como completadas
             completed_count = self.booking_service.mark_completed_bookings(
@@ -152,6 +191,18 @@ class CalendarService:
                 conflicts,
                 calendar_source.property_id
             )
+
+            # Notificação DB para conflitos detectados
+            if conflicts:
+                try:
+                    notif_db = NotificationDBService(self.db)
+                    notif_db.create(
+                        type="conflict",
+                        title=f"{len(conflicts)} conflito(s) detectado(s)",
+                        message=f"Verifique a página de conflitos para resolver.",
+                    )
+                except Exception as e:
+                    logger.error(f"  ❌ Error creating conflict notification: {e}")
 
             # Atualizar log de sincronização
             sync_log.status = SyncStatus.SUCCESS

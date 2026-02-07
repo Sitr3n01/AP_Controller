@@ -4,6 +4,9 @@ import Dashboard from './pages/Dashboard';
 import Calendar from './pages/Calendar';
 import Conflicts from './pages/Conflicts';
 import Statistics from './pages/Statistics';
+import Documents from './pages/Documents';
+import Emails from './pages/Emails';
+import Notifications from './pages/Notifications';
 import Settings from './pages/Settings';
 import './App.css';
 
@@ -21,6 +24,12 @@ function App() {
         return <Conflicts />;
       case 'statistics':
         return <Statistics />;
+      case 'documents':
+        return <Documents />;
+      case 'emails':
+        return <Emails />;
+      case 'notifications':
+        return <Notifications />;
       case 'settings':
         return <Settings />;
       default:

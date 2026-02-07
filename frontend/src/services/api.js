@@ -62,18 +62,39 @@ export const systemAPI = {
   getHealth: () => api.get('/health'),
 };
 
-// ========== SETTINGS (para futuro endpoint de configurações) ==========
+// ========== DOCUMENTS (MVP2) ==========
+export const documentsAPI = {
+  generate: (data) => api.post('/v1/documents/generate', data),
+  generateFromBooking: (data) => api.post('/v1/documents/generate-from-booking', data),
+  list: (params = {}) => api.get('/v1/documents/list', { params }),
+  download: (filename) => api.get(`/v1/documents/download/${filename}`, { responseType: 'blob' }),
+  delete: (filename) => api.delete(`/v1/documents/${filename}`),
+  generateAndDownload: (data) => api.post('/v1/documents/generate-and-download', data, { responseType: 'blob' }),
+};
+
+// ========== EMAILS (MVP2) ==========
+export const emailsAPI = {
+  send: (data) => api.post('/v1/emails/send', data),
+  sendTemplate: (data) => api.post('/v1/emails/send-template', data),
+  sendBookingConfirmation: (data) => api.post('/v1/emails/send-booking-confirmation', data),
+  sendCheckinReminder: (data) => api.post('/v1/emails/send-checkin-reminder', data),
+  sendBulkReminders: (params = {}) => api.post('/v1/emails/send-bulk-reminders', null, { params }),
+  fetch: (data) => api.post('/v1/emails/fetch', data),
+  testConnection: () => api.get('/v1/emails/test-connection'),
+};
+
+// ========== SETTINGS ==========
 export const settingsAPI = {
-  // Placeholder para quando criarmos endpoints de configuração
-  getAll: () => {
-    // Por enquanto retorna dados do /api/info
-    return systemAPI.getInfo();
-  },
-  update: (data) => {
-    // TODO: Criar endpoint no backend para salvar configurações
-    console.log('Settings update (placeholder):', data);
-    return Promise.resolve({ data: { success: true } });
-  },
+  getAll: () => api.get('/v1/settings'),
+  update: (data) => api.put('/v1/settings', data),
+};
+
+// ========== NOTIFICATIONS ==========
+export const notificationsAPI = {
+  getAll: (params = {}) => api.get('/v1/notifications', { params }),
+  getSummary: () => api.get('/v1/notifications/summary'),
+  markAsRead: (id) => api.put(`/v1/notifications/${id}/read`),
+  markAllAsRead: () => api.put('/v1/notifications/read-all'),
 };
 
 export default api;

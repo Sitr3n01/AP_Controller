@@ -58,11 +58,18 @@ class Settings(BaseSettings):
     OUTPUT_DIR: str = "./data/generated_docs"
     DEFAULT_TEMPLATE: str = "autorizacao_condominio.docx"
 
-    # === DADOS DO IMÓVEL ===
-    PROPERTY_NAME: str = "Apartamento 2 Quartos - Goiânia"
-    PROPERTY_ADDRESS: str = "Rua Exemplo, 123, Setor Central, 74000-000 Goiânia - GO"
+    # === DADOS DO IMÓVEL (configure no .env) ===
+    PROPERTY_NAME: str = "Meu Apartamento"
+    PROPERTY_ADDRESS: str = "Condomínio Exemplo"
     CONDO_NAME: str = "Condomínio Exemplo"
     CONDO_ADMIN_NAME: str = "Administração do Condomínio"
+    OWNER_NAME: str = "Nome do Proprietário"
+    OWNER_EMAIL: str = "proprietario@email.com"
+    OWNER_PHONE: str = "(00) 0 0000-0000"
+    OWNER_APTO: str = "000"
+    OWNER_BLOCO: str = "A"
+    OWNER_GARAGEM: str = "000"
+    CONDO_EMAIL: str = Field(default="", description="Email do condomínio para envio de autorizações")
 
     # === FEATURES ===
     ENABLE_AUTO_DOCUMENT_GENERATION: bool = False
