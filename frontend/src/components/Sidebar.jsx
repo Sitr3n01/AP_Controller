@@ -28,7 +28,7 @@ const Sidebar = ({ currentPage, onPageChange, collapsed, onToggleCollapse }) => 
     <div className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
       <div className="sidebar-header">
         <h1 className="sidebar-title">
-          {!collapsed && 'SENTINEL'}
+          <span className="sidebar-title-text">LUMINA</span>
         </h1>
         <button
           className="collapse-btn"
@@ -50,22 +50,20 @@ const Sidebar = ({ currentPage, onPageChange, collapsed, onToggleCollapse }) => 
               title={collapsed ? item.label : ''}
             >
               <Icon size={20} />
-              {!collapsed && <span>{item.label}</span>}
+              <span className="nav-label">{item.label}</span>
             </button>
           );
         })}
       </nav>
 
       <div className="sidebar-footer">
-        {!collapsed && (
-          <div className="sidebar-info">
-            <p className="version">v2.2.0 - MVP2</p>
-            <p className="status">
-              <span className="status-dot"></span>
-              Sistema Online
-            </p>
-          </div>
-        )}
+        <div className="sidebar-info">
+          <p className="version">v2.2.0 - MVP2</p>
+          <p className="status">
+            <span className="status-dot"></span>
+            <span className="status-text">Sistema Online</span>
+          </p>
+        </div>
       </div>
     </div>
   );

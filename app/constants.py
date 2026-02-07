@@ -1,5 +1,5 @@
 """
-Constantes da aplicação Sentinel.
+Constantes da aplicação Lumina.
 Centraliza valores fixos usados em múltiplos módulos.
 """
 

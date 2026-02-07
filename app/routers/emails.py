@@ -542,7 +542,7 @@ async def test_email_connection(
         test_result = await email_service.send_email(
             to=[settings.EMAIL_FROM],
             subject="Test Email",
-            body="This is a test email from SENTINEL system.",
+            body="This is a test email from LUMINA system.",
             html=False
         )
         results["smtp"] = test_result["success"]

@@ -9,10 +9,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Configurações da aplicação Sentinel"""
+    """Configurações da aplicação Lumina"""
 
     # === APLICAÇÃO ===
-    APP_NAME: str = "Sentinel"
+    APP_NAME: str = "Lumina"
     APP_ENV: str = "production"
     LOG_LEVEL: str = "INFO"
     TIMEZONE: str = "America/Sao_Paulo"
@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     EMAIL_IMAP_PORT: int = Field(default=993, description="Porta IMAP")
     EMAIL_USE_TLS: bool = Field(default=True, description="Usar TLS")
     CONTACT_PHONE: str = Field(default="(62) 99999-9999", description="Telefone de contato")
-    CONTACT_EMAIL: str = Field(default="contato@sentinel.com", description="Email de contato")
+    CONTACT_EMAIL: str = Field(default="contato@lumina.com", description="Email de contato")
 
     # === GMAIL API (MVP3) ===
     GMAIL_CREDENTIALS_FILE: str = "./credentials.json"

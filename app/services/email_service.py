@@ -523,7 +523,7 @@ class EmailService:
             <p>Aguardamos você!</p>
         </div>
         <div class="footer">
-            <p>SENTINEL - Sistema de Gestão de Apartamentos</p>
+            <p>LUMINA - Sistema de Gestão de Apartamentos</p>
             <p>{{ property_address }}</p>
         </div>
     </div>

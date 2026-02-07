@@ -1,5 +1,5 @@
 """
-Aplicação principal FastAPI - SENTINEL
+Aplicação principal FastAPI - LUMINA
 Sistema de Gestão Automatizada de Apartamento
 """
 import asyncio
@@ -157,7 +157,7 @@ async def lifespan(app: FastAPI):
 
 # Criar aplicação FastAPI
 app = FastAPI(
-    title="SENTINEL API",
+    title="LUMINA API",
     description="API para gerenciamento automatizado de apartamento no Airbnb e Booking.com",
     version="1.0.0",
     lifespan=lifespan

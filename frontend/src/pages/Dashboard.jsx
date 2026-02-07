@@ -1,59 +1,130 @@
-import { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  Calendar as CalendarIcon,
-  AlertTriangle,
-  TrendingUp,
-  RefreshCw,
-  DollarSign,
-  Users,
-  CheckCircle,
-  Clock
+  BarChart, Wallet, Calendar, AlertTriangle,
+  ArrowUpRight, ArrowDownRight, RefreshCw, CheckCircle,
+  User, Clock
 } from 'lucide-react';
-import { statisticsAPI, conflictsAPI, bookingsAPI } from '../services/api';
+import { statisticsAPI, bookingsAPI, conflictsAPI, notificationsAPI } from '../services/api';
 import './Dashboard.css';
+
+const StatCard = ({ title, value, trend, trendValue, icon: Icon }) => (
+  <div className="glass-card stat-card">
+    <div className="stat-header">
+      <span>{title}</span>
+      <Icon size={20} />
+    </div>
+    <div className="stat-value">{value}</div>
+    {trendValue && (
+      <div className="stat-footer">
+        <span className={trend === 'up' ? 'trend-up' : 'trend-down'}>
+          {trend === 'up' ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+          {trendValue}
+        </span>
+        <span style={{ color: 'var(--text-muted)' }}>vs mês passado</span>
+      </div>
+    )}
+  </div>
+);
+
+const NOTIFICATION_ICONS = {
+  new_booking: { icon: CheckCircle, color: 'var(--success)' },
+  booking_update: { icon: Calendar, color: 'var(--info)' },
+  booking_cancel: { icon: AlertTriangle, color: 'var(--warning)' },
+  conflict: { icon: AlertTriangle, color: 'var(--danger)' },
+  sync: { icon: RefreshCw, color: 'var(--success)' },
+  document: { icon: User, color: '#8b5cf6' },
+  email: { icon: User, color: '#06b6d4' },
+  system: { icon: Clock, color: 'var(--secondary)' },
+};
+
+const formatTime = (dateStr) => {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return 'Agora';
+  if (diffMin < 60) return `Há ${diffMin} min`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `Há ${diffH}h`;
+  const diffD = Math.floor(diffH / 24);
+  return `Há ${diffD}d`;
+};
 
 const Dashboard = () => {
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState(null);
-  const [conflicts, setConflicts] = useState(null);
+  const [stats, setStats] = useState({
+    occupancyRate: 0,
+    totalRevenue: 0,
+    activeBookings: 0,
+    conflicts: 0
+  });
   const [upcomingBookings, setUpcomingBookings] = useState([]);
-  const [todayCheckins, setTodayCheckins] = useState([]);
-  const [todayCheckouts, setTodayCheckouts] = useState([]);
+  const [recentActivity, setRecentActivity] = useState([]);
 
   useEffect(() => {
     loadDashboard();
   }, []);
 
   const loadDashboard = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const [statsResponse, conflictsResponse, bookingsResponse] = await Promise.all([
-        statisticsAPI.getDashboard(1), // property_id = 1
+      const results = await Promise.allSettled([
+        statisticsAPI.getDashboard(1),
+        bookingsAPI.getUpcoming({ limit: 5 }),
         conflictsAPI.getSummary(1),
-        bookingsAPI.getUpcoming({ property_id: 1, limit: 5 }),
+        notificationsAPI.getAll({ limit: 5 }),
       ]);
 
-      setStats(statsResponse.data);
-      setConflicts(conflictsResponse.data);
-      setUpcomingBookings(bookingsResponse.data?.bookings || []);
+      // Statistics
+      if (results[0].status === 'fulfilled') {
+        const data = results[0].value.data;
+        setStats(prev => ({
+          ...prev,
+          occupancyRate: data.occupancy_rate ?? data.occupancyRate ?? 0,
+          totalRevenue: data.total_revenue ?? data.totalRevenue ?? 0,
+          activeBookings: data.active_bookings ?? data.activeBookings ?? 0,
+        }));
+      }
 
-      // Filtrar check-ins e check-outs de hoje
-      const today = new Date().toISOString().split('T')[0];
-      const allBookings = bookingsResponse.data?.bookings || [];
-      setTodayCheckins(allBookings.filter(b => b.check_in_date?.split('T')[0] === today));
-      setTodayCheckouts(allBookings.filter(b => b.check_out_date?.split('T')[0] === today));
-    } catch (error) {
-      console.error('Error loading dashboard:', error);
+      // Upcoming bookings
+      if (results[1].status === 'fulfilled') {
+        const data = results[1].value.data;
+        setUpcomingBookings(Array.isArray(data) ? data.slice(0, 5) : (data.items || []).slice(0, 5));
+      }
+
+      // Conflicts
+      if (results[2].status === 'fulfilled') {
+        const data = results[2].value.data;
+        setStats(prev => ({
+          ...prev,
+          conflicts: data.active_conflicts ?? data.total ?? 0,
+        }));
+      }
+
+      // Recent notifications for activity feed
+      if (results[3].status === 'fulfilled') {
+        const data = results[3].value.data;
+        setRecentActivity((data.items || []).slice(0, 5));
+      }
+    } catch (err) {
+      console.error('Dashboard load error:', err);
     } finally {
       setLoading(false);
     }
   };
 
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' });
+  };
+
   if (loading) {
     return (
-      <div className="dashboard-page">
+      <div className="dashboard-container">
         <div className="loading-state">
-          <RefreshCw className="spin" size={32} />
+          <RefreshCw size={32} className="spin" />
           <p>Carregando dashboard...</p>
         </div>
       </div>
@@ -61,282 +132,126 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="dashboard-page">
-      <div className="dashboard-header">
-        <div>
+    <div className="dashboard-container">
+      {/* Header */}
+      <header className="dashboard-header">
+        <div className="welcome-text">
           <h1>Dashboard</h1>
-          <p className="subtitle">Visão geral do seu apartamento</p>
+          <p style={{ color: 'var(--text-muted)' }}>Resumo do sistema Lumina</p>
         </div>
-        <button className="btn btn-primary" onClick={loadDashboard}>
-          <RefreshCw size={16} />
-          Atualizar
-        </button>
-      </div>
+        <div className="date-badge">
+          {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
+        </div>
+      </header>
 
-      {/* Cards de estatísticas principais */}
-      <div className="stats-grid">
+      <div className="bento-grid">
+        {/* KPI Cards */}
         <StatCard
-          title="Total de Reservas"
-          value={stats?.total_bookings || 0}
-          icon={<CalendarIcon size={24} />}
-          color="primary"
+          title="Ocupação"
+          value={`${Math.round(stats.occupancyRate)}%`}
+          trend="up"
+          icon={BarChart}
+        />
+        <StatCard
+          title="Receita Mensal"
+          value={`R$ ${Number(stats.totalRevenue).toLocaleString('pt-BR')}`}
+          trend="up"
+          icon={Wallet}
         />
         <StatCard
           title="Reservas Ativas"
-          value={stats?.active_bookings || 0}
-          icon={<CheckCircle size={24} />}
-          color="success"
+          value={stats.activeBookings}
+          icon={Calendar}
         />
-        <StatCard
-          title="Conflitos Ativos"
-          value={conflicts?.total || 0}
-          icon={<AlertTriangle size={24} />}
-          color={conflicts?.total > 0 ? 'danger' : 'success'}
-          warning={conflicts?.total > 0}
-        />
-        <StatCard
-          title="Taxa de Ocupação"
-          value={`${stats?.occupancy_rate || 0}%`}
-          icon={<TrendingUp size={24} />}
-          color="info"
-        />
-      </div>
 
-      {/* Cards de estatísticas secundárias */}
-      <div className="stats-grid-secondary">
-        <StatCardSmall
-          title="Receita Mensal"
-          value={formatCurrency(stats?.monthly_revenue || 0)}
-          icon={<DollarSign size={20} />}
-          color="success"
-        />
-        <StatCardSmall
-          title="Média de Hóspedes"
-          value={stats?.avg_guests || 0}
-          icon={<Users size={20} />}
-          color="info"
-        />
-        <StatCardSmall
-          title="Check-ins Hoje"
-          value={todayCheckins.length}
-          icon={<Clock size={20} />}
-          color="primary"
-        />
-        <StatCardSmall
-          title="Check-outs Hoje"
-          value={todayCheckouts.length}
-          icon={<Clock size={20} />}
-          color="primary"
-        />
-      </div>
-
-      {/* Check-ins e Check-outs de Hoje */}
-      {(todayCheckins.length > 0 || todayCheckouts.length > 0) && (
-        <div className="section">
-          <div className="today-activities">
-            {todayCheckins.length > 0 && (
-              <div className="activity-column">
-                <h3 className="activity-title">
-                  <Clock size={18} />
-                  Check-ins Hoje ({todayCheckins.length})
-                </h3>
-                <div className="activity-list">
-                  {todayCheckins.map((booking) => (
-                    <div key={booking.id} className="activity-card checkin">
-                      <div className="activity-header">
-                        <span className="guest-name">{booking.guest_name}</span>
-                        <span className={`badge badge-${getPlatformColor(booking.platform)}`}>
-                          {booking.platform}
-                        </span>
-                      </div>
-                      <div className="activity-info">
-                        <Users size={14} />
-                        <span>{booking.guest_count} hóspede{booking.guest_count !== 1 ? 's' : ''}</span>
-                        <span className="separator">•</span>
-                        <span>{booking.nights_count} noite{booking.nights_count !== 1 ? 's' : ''}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {todayCheckouts.length > 0 && (
-              <div className="activity-column">
-                <h3 className="activity-title">
-                  <Clock size={18} />
-                  Check-outs Hoje ({todayCheckouts.length})
-                </h3>
-                <div className="activity-list">
-                  {todayCheckouts.map((booking) => (
-                    <div key={booking.id} className="activity-card checkout">
-                      <div className="activity-header">
-                        <span className="guest-name">{booking.guest_name}</span>
-                        <span className={`badge badge-${getPlatformColor(booking.platform)}`}>
-                          {booking.platform}
-                        </span>
-                      </div>
-                      <div className="activity-info">
-                        <span>Liberar apartamento</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Próximas reservas */}
-      {upcomingBookings.length > 0 && (
-        <div className="section">
-          <h2 className="section-title">Próximas Reservas (5 dias)</h2>
-          <div className="reservations-list">
-            {upcomingBookings.slice(0, 5).map((booking) => (
-              <div key={booking.id} className="reservation-card">
-                <div className="reservation-header">
-                  <span className="guest-name">{booking.guest_name}</span>
-                  <span className={`badge badge-${getPlatformColor(booking.platform)}`}>
-                    {booking.platform}
-                  </span>
-                </div>
-                <div className="reservation-dates">
-                  <CalendarIcon size={14} />
-                  <span>{formatDate(booking.check_in_date)} até {formatDate(booking.check_out_date)}</span>
-                  <span className="nights">({booking.nights_count} noite{booking.nights_count !== 1 ? 's' : ''})</span>
-                </div>
-                <div className="reservation-details">
-                  <span className="detail-item">
-                    <Users size={14} />
-                    {booking.guest_count} hóspede{booking.guest_count !== 1 ? 's' : ''}
-                  </span>
-                  {booking.total_price && (
-                    <span className="detail-item">
-                      <DollarSign size={14} />
-                      {formatCurrency(booking.total_price)}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Alertas de conflitos */}
-      {conflicts && conflicts.total > 0 && (
-        <div className="section">
-          <div className="alert alert-warning">
+        {/* Conflict alert card */}
+        <div className="glass-card stat-card" style={{
+          borderColor: stats.conflicts > 0 ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)',
+          background: stats.conflicts > 0 ? 'rgba(239, 68, 68, 0.05)' : 'rgba(16, 185, 129, 0.05)'
+        }}>
+          <div className="stat-header" style={{ color: stats.conflicts > 0 ? 'var(--danger)' : 'var(--success)' }}>
+            <span>Conflitos</span>
             <AlertTriangle size={20} />
-            <div>
-              <strong>Atenção! {conflicts.total} conflito(s) detectado(s)</strong>
-              <p>
-                {conflicts.duplicates > 0 && `${conflicts.duplicates} duplicata(s), `}
-                {conflicts.overlaps > 0 && `${conflicts.overlaps} sobreposição(ões)`}
-              </p>
-              <p className="alert-action">
-                Veja a aba <strong>Conflitos</strong> para mais detalhes e resolução.
-              </p>
-            </div>
+          </div>
+          <div className="stat-value" style={{ color: stats.conflicts > 0 ? 'var(--danger)' : 'var(--success)' }}>
+            {stats.conflicts}
+          </div>
+          <div className="stat-footer">
+            <span style={{ color: stats.conflicts > 0 ? 'var(--danger)' : 'var(--success)', fontSize: '12px' }}>
+              {stats.conflicts > 0 ? 'Resolver pendências' : 'Nenhum conflito'}
+            </span>
           </div>
         </div>
-      )}
 
-      {/* Informações do sistema */}
-      {stats && (
-        <div className="section">
-          <h2 className="section-title">Informações do Sistema</h2>
-          <div className="info-grid">
-            <div className="info-item">
-              <span className="info-label">Última Sincronização</span>
-              <span className="info-value">{formatDateTime(stats.last_sync)}</span>
+        {/* Upcoming bookings table */}
+        <div className="glass-card main-chart-section">
+          <h3 style={{ marginBottom: '20px', fontSize: '18px', fontWeight: '600' }}>Próximos Check-ins</h3>
+          {upcomingBookings.length > 0 ? (
+            <table>
+              <thead>
+                <tr>
+                  <th>Hóspede</th>
+                  <th>Plataforma</th>
+                  <th>Data</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {upcomingBookings.map((b, i) => (
+                  <tr key={b.id || i}>
+                    <td>{b.guest_name || 'Hóspede'}</td>
+                    <td>
+                      <span className={`badge badge-${(b.platform || 'manual').toLowerCase()}`}>
+                        {b.platform || 'Manual'}
+                      </span>
+                    </td>
+                    <td>{formatDate(b.check_in)} - {formatDate(b.check_out)}</td>
+                    <td>{b.status || 'Confirmado'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="empty-state" style={{ padding: '40px 20px' }}>
+              <Calendar size={32} />
+              <p>Nenhum check-in próximo</p>
             </div>
-            <div className="info-item">
-              <span className="info-label">Próxima Sincronização</span>
-              <span className="info-value">{formatDateTime(stats.next_sync)}</span>
-            </div>
-            <div className="info-item">
-              <span className="info-label">Check-ins Hoje</span>
-              <span className="info-value">{stats.today_checkins || 0}</span>
-            </div>
-            <div className="info-item">
-              <span className="info-label">Check-outs Hoje</span>
-              <span className="info-value">{stats.today_checkouts || 0}</span>
-            </div>
-          </div>
+          )}
         </div>
-      )}
 
-      {/* Estado vazio */}
-      {stats && stats.total_bookings === 0 && (
-        <div className="empty-state">
-          <CalendarIcon size={48} />
-          <h3>Nenhuma reserva encontrada</h3>
-          <p>Configure as URLs dos calendários nas Configurações para começar a sincronizar.</p>
+        {/* Activity feed */}
+        <div className="glass-card side-feed-section">
+          <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '10px' }}>Atividade Recente</h3>
+
+          {recentActivity.length > 0 ? (
+            <div className="activity-feed">
+              {recentActivity.map((item, i) => {
+                const cfg = NOTIFICATION_ICONS[item.type] || NOTIFICATION_ICONS.system;
+                const Icon = cfg.icon;
+                return (
+                  <div className="feed-item" key={item.id || i}>
+                    <div className="feed-icon" style={{ color: cfg.color }}>
+                      <Icon size={18} />
+                    </div>
+                    <div className="feed-content">
+                      <h4>{item.title}</h4>
+                      <p>{item.message}</p>
+                      <div className="feed-time">{formatTime(item.created_at)}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="empty-state" style={{ padding: '30px 10px' }}>
+              <Clock size={24} />
+              <p>Nenhuma atividade recente</p>
+            </div>
+          )}
         </div>
-      )}
-    </div>
-  );
-};
-
-const StatCard = ({ title, value, icon, color, warning }) => {
-  return (
-    <div className={`stat-card stat-card-${color} ${warning ? 'warning' : ''}`}>
-      <div className="stat-icon">{icon}</div>
-      <div className="stat-content">
-        <p className="stat-title">{title}</p>
-        <p className="stat-value">{value}</p>
       </div>
     </div>
   );
-};
-
-const StatCardSmall = ({ title, value, icon, color }) => {
-  return (
-    <div className={`stat-card-small stat-card-${color}`}>
-      <div className="stat-icon-small">{icon}</div>
-      <div className="stat-content-small">
-        <p className="stat-title-small">{title}</p>
-        <p className="stat-value-small">{value}</p>
-      </div>
-    </div>
-  );
-};
-
-// Utilitários
-const getPlatformColor = (platform) => {
-  const colors = {
-    airbnb: 'danger',
-    booking: 'info',
-    manual: 'secondary',
-  };
-  return colors[platform] || 'secondary';
-};
-
-const formatDate = (dateString) => {
-  if (!dateString) return '-';
-  const date = new Date(dateString);
-  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
-};
-
-const formatDateTime = (dateString) => {
-  if (!dateString) return '-';
-  const date = new Date(dateString);
-  return date.toLocaleString('pt-BR', {
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-};
-
-const formatCurrency = (value) => {
-  if (!value) return 'R$ 0,00';
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(value);
 };
 
 export default Dashboard;

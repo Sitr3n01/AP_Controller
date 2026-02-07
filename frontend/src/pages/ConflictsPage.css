@@ -38,8 +38,8 @@
 }
 
 .summary-card.has-conflicts {
-  background: #fef3c7;
-  border: 1px solid #fbbf24;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.3);
 }
 
 .summary-icon {
@@ -49,7 +49,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: white;
+  background: var(--glass-2);
 }
 
 .summary-card.has-conflicts .summary-icon {
@@ -173,18 +173,18 @@
 }
 
 .platform-badge.platform-airbnb {
-  background: #fee2e2;
-  color: #991b1b;
+  background: rgba(255, 56, 92, 0.15);
+  color: #ff385c;
 }
 
 .platform-badge.platform-booking {
-  background: #dbeafe;
-  color: #1e40af;
+  background: rgba(0, 113, 194, 0.15);
+  color: #3b82f6;
 }
 
 .platform-badge.platform-manual {
-  background: #f1f5f9;
-  color: #475569;
+  background: rgba(100, 116, 139, 0.15);
+  color: #94a3b8;
 }
 
 .guest-name {
@@ -203,9 +203,9 @@
   justify-content: center;
   gap: 8px;
   padding: 8px;
-  background: #fef3c7;
+  background: rgba(245, 158, 11, 0.1);
   border-radius: 6px;
-  color: #92400e;
+  color: var(--warning);
   font-size: 12px;
   font-weight: 600;
 }
@@ -285,10 +285,11 @@
 }
 
 .overlap-info {
-  background: #fef3c7;
+  background: rgba(245, 158, 11, 0.1);
   padding: 12px;
   border-radius: 6px;
   font-size: 13px;
+  color: var(--text-muted);
 }
 
 .overlap-info p {

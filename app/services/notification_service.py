@@ -248,7 +248,7 @@ class NotificationService:
         Returns:
             Mensagem formatada
         """
-        message = "📊 DASHBOARD SENTINEL\n"
+        message = "📊 DASHBOARD LUMINA\n"
         message += "=" * 40 + "\n\n"
 
         # Hóspede atual

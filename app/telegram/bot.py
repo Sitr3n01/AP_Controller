@@ -114,7 +114,7 @@ class TelegramBot:
 
         welcome_text = (
             f"👋 Olá, {user.first_name}!\n\n"
-            "🏢 Bem-vindo ao **SENTINEL** - Sistema de Gerenciamento de Apartamento\n\n"
+            "🏢 Bem-vindo ao **LUMINA** - Sistema de Gerenciamento de Apartamento\n\n"
             "Aqui você pode:\n"
             "• Ver status das reservas\n"
             "• Verificar conflitos\n"
